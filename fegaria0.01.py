@@ -1,12 +1,13 @@
 import pygame, sys, math, time, os, random, noise
 from pygame.locals import *
 pygame.init()
+VERSION=0.01
 screenObj=pygame.display.Info()
 screenW=screenObj.current_w
 screenH=screenObj.current_h
 screenW,screenH=1200,1000
 screen=pygame.display.set_mode((screenW,screenH))#,FULLSCREEN)
-pygame.display.set_caption('fegararia')
+pygame.display.set_caption('fegararia'+" v"+str(VERSION))
 font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
 CHUNKSIZE=10
 BLOCKSIZE=48
@@ -15,14 +16,14 @@ CHUNKNUMY=70
 PLAYERREACH=BLOCKSIZE*5
 LEFTBOARDER=CHUNKSIZE*BLOCKSIZE+BLOCKSIZE/2
 RIGHTBOARDER=CHUNKSIZE*BLOCKSIZE*CHUNKNUMX-BLOCKSIZE/2
-tilesheet=pygame.transform.scale(pygame.image.load("tilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
-specialLightingTilesheet=pygame.transform.scale(pygame.image.load("special lighting tilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
-backTilesheet=pygame.transform.scale(pygame.image.load("backTilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
-overworldbkg=pygame.transform.scale(pygame.image.load("overworldbkg.png"),(screenW,screenH))
-characterimages=pygame.transform.scale(pygame.image.load("player tilesheet.png"),(BLOCKSIZE*4,BLOCKSIZE*4))
+tilesheet=pygame.transform.scale(pygame.image.load("Textures/tilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
+specialLightingTilesheet=pygame.transform.scale(pygame.image.load("Textures/special lighting tilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
+backTilesheet=pygame.transform.scale(pygame.image.load("Textures/backTilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
+overworldbkg=pygame.transform.scale(pygame.image.load("Textures/overworldbkg.png"),(screenW,screenH))
+characterimages=pygame.transform.scale(pygame.image.load("Textures/player tilesheet.png"),(BLOCKSIZE*4,BLOCKSIZE*4))
 characterimages.set_colorkey((255,0,255))
-itemTilesheet=pygame.transform.scale(pygame.image.load("itemTilesheet.png"),(int(BLOCKSIZE/1.5*16),int(BLOCKSIZE/1.5*16)))
-hotbarItemTilesheet=pygame.transform.scale(pygame.image.load("itemTilesheet.png"),(576,576))
+itemTilesheet=pygame.transform.scale(pygame.image.load("Textures/itemTilesheet.png"),(int(BLOCKSIZE/1.5*16),int(BLOCKSIZE/1.5*16)))
+hotbarItemTilesheet=pygame.transform.scale(pygame.image.load("Textures/itemTilesheet.png"),(576,576))
 itemImages=[]
 hotbarItemImages=[]
 specialLightingImages=[]
