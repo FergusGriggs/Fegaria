@@ -202,6 +202,7 @@ class Map():
                      backval=3
                
             mapData[j].append([val,backval])
+      print("Spawning stone...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/6)):#surface stone
          ore(1,6,None,(300,500),None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/4)):#lower stone
@@ -209,18 +210,22 @@ class Map():
       for i in range(int(CHUNKNUMX*CHUNKNUMY/4)):#boarder stone
          ore(1,6,None,(500,500),None,1)
       val=random.randint(50,CHUNKSIZE*CHUNKNUMX-50)
-##      for i in range(int(CHUNKNUMX*CHUNKNUMY/4)):#add desert
-##         ore(18,20,None,(300,500),(val-50,val+50),18)
+      print("Spawning sand...")
+##      for i in range(1):#add desert
+##         ore(18,15,None,(300,500),(val-50,val+50),18)
+      print("Spawning Ores...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/3)):#coal
          ore(34,4,None,None,None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/6)):#iron
          ore(33,3,None,None,None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#gold
          ore(32,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),None)
+      print("Making Caves...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#simple caves
          ore(0,10,None,None,None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#bigger lower caves
          ore(0,17,None,(550,680),None)
+      print("Growing Trees...")
       for i in range(int(CHUNKNUMX*CHUNKSIZE/3.5)):
          tree((random.randint(0,CHUNKNUMX*CHUNKSIZE),200))
 ##      data=open("maps\mapData"+str(num),"w")
@@ -622,11 +627,23 @@ def getIntegFromVal(val):
 
 font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
 clock=pygame.time.Clock()
+worldSize="tiny"
+
+worldSizes={
+   "tiny":[20,70],
+   "small":[100,80],
+   "medium":[200,120],
+   "large":[400,180],
+   "massive":[800,240],
+   }
+
 CHUNKSIZE=10
 BLOCKSIZE=48
-CHUNKNUMX=20
-CHUNKNUMY=70
-print("Worldsize: "+str(CHUNKSIZE*CHUNKNUMX)+"x"+str(CHUNKSIZE*CHUNKNUMY)+" Blocks")
+
+CHUNKNUMX=worldSizes[worldSize][0]
+CHUNKNUMY=worldSizes[worldSize][1]
+
+print("Worldsize: "+worldSize+" ("+str(CHUNKSIZE*CHUNKNUMX)+"x"+str(CHUNKSIZE*CHUNKNUMY)+" blocks)")
 PLAYERREACH=BLOCKSIZE*5
 
 LEFTBOARDER=CHUNKSIZE*BLOCKSIZE+BLOCKSIZE/2
@@ -653,8 +670,8 @@ loadLightingImages()
 
 print("Initailizing Objects...")
 
-CAM=Cam(Map(CHUNKNUMX,CHUNKNUMY,CHUNKSIZE,BLOCKSIZE),(BLOCKSIZE*40-screenW/2,BLOCKSIZE*390))
-p=Player((BLOCKSIZE*40,BLOCKSIZE*395),100,4)
+CAM=Cam(Map(CHUNKNUMX,CHUNKNUMY,CHUNKSIZE,BLOCKSIZE),(BLOCKSIZE*CHUNKNUMX*CHUNKSIZE/2-screenW/2,BLOCKSIZE*390))
+p=Player((BLOCKSIZE*CHUNKNUMX*CHUNKSIZE/2,BLOCKSIZE*395),100,4)
 print("Generating terrain...")
 CAM.Map.generateTerrain(0)
 #CAM.Map.loadTerrain(0)
@@ -701,8 +718,8 @@ while 1:
    drawWorldItems()
    p.drawHotbar()
    fps=clock.get_fps()
-   text=font.render(str(int(fps))+" "+str(int(p.pos[0])),True,(255,255,255))
-   screen.blit(text,(1100,10))
+   text=font.render(str(int(fps))+"fps  "+str(int(p.pos[0]//BLOCKSIZE))+"x "+str(int(p.pos[1]//BLOCKSIZE))+"y",True,(255,255,255))
+   screen.blit(text,(1000,10))
    #globalLighting=math.sin(gameTick/1000)/2.5+0.5
    for event in pygame.event.get():
        if event.type==QUIT:
@@ -752,4 +769,3 @@ while 1:
    clock.tick(60)
    pygame.display.update()
    pygame.display.flip()
-
