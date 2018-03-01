@@ -1,0 +1,25 @@
+28/02/2018-v0.0.1-------------------------------------------------------
+-added item copperAxe
+-added item copperPickaxe
+-added item copperHammer
+-added block placement
+-added player animation
+-added world item objects
+-added experimental lighting
+-added tree cutting
+-added back block removal
+-added hotbar
+-removed Brinefreak
+27/02/2018-v0.0.1-------------------------------------------------------
+-added block cobble
+-added block dirt
+-added block stone
+-added perlin noise world gen
+-added block trees
+-added item coal
+-added item iron
+-added item gold
+-added block coal ore
+-added block iron ore
+-added block gold ore
+-added player collisions
