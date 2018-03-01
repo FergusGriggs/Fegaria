@@ -462,7 +462,12 @@ class Cam():
       
    def render(self):
       self.Map.draw((self.pos[0],self.pos[1]))
-     
+def drawHoldingItem():
+   m=pygame.mouse.get_pos()
+   screen.blit(hotbarItemImages[itemHolding.imgIndex],(m[0]-BLOCKSIZE/3,m[1]-BLOCKSIZE/3))
+   if "tool" not in itemHolding.tags:
+      text=font.render(str(itemHolding.amnt),True,(255,255,255))
+      screen.blit(text,(m[0]-text.get_width()/2+15,m[1]+5))
 class Player():
    def __init__(self,pos,maxhp,movespeed):
       self.pos=pos
@@ -498,6 +503,8 @@ class Player():
                if "tool" not in self.inventory[i][j].tags:
                    text=font.render(str(self.inventory[i][j].amnt),True,(255,255,255))
                    screen.blit(text,(50+i*61-text.get_width()/2,110+j*61))
+      if pressed:
+         drawHoldingItem()
    def updateInventory(self):
       global itemHolding, pressed, itemPos
       if pygame.mouse.get_pressed()[0]:
@@ -525,8 +532,15 @@ class Player():
                   if self.hotbar[i]==None:
                      self.hotbar[i]=itemHolding
                   else:
-                     putItemBack(self.hotbar[i])
-                     self.hotbar[i]=itemHolding
+                     if self.hotbar[i].name==itemHolding.name:
+                        if "tool" not in self.hotbar[i].tags:
+                           self.hotbar[i].amnt+=itemHolding.amnt
+                           if self.hotbar[i].amnt>999:
+                              self.addItem(self.hotbar[i].name,self.hotbar[i].tags,self.hotbar[i].amnt-999,self.hotbar[i].imgIndex)
+                              self.hotbar[i].amnt=999
+                     else:
+                        putItemBack(self.hotbar[i])
+                        self.hotbar[i]=itemHolding
                   found=True
                   break
             if not found:
@@ -536,8 +550,15 @@ class Player():
                         if self.inventory[i][j]==None:
                            self.inventory[i][j]=itemHolding
                         else:
-                           putItemBack(self.inventory[i][j])
-                           self.inventory[i][j]=itemHolding
+                           if self.inventory[i][j].name==itemHolding.name:
+                              if "tool" not in self.inventory[i][j].tags:
+                                 self.inventory[i][j].amnt+=itemHolding.amnt
+                                 if self.inventory[i][j].amnt>999:
+                                    self.addItem(self.inventory[i][j].name,self.inventory[i][j].tags,self.inventory[i][j].amnt-999,self.inventory[i][j].imgIndex)
+                                    self.inventory[i][j].amnt=999
+                           else:
+                              putItemBack(self.inventory[i][j])
+                              self.inventory[i][j]=itemHolding
                         found=True
             if not found:
                putItemBack(itemHolding)
@@ -834,7 +855,7 @@ while 1:
              movingRight=True
              stopRight=False
           if event.key==K_f:
-             for i in range(20):
+             for i in range(19):
                 WorldItem("cobble",["material","block"],5,(p.pos[0],p.pos[1]-200))
           if event.key==K_h:
              p.pos=spawnPoint
