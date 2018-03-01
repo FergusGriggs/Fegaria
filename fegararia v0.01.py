@@ -626,7 +626,7 @@ CHUNKSIZE=10
 BLOCKSIZE=48
 CHUNKNUMX=20
 CHUNKNUMY=70
-
+print("Worldsize: "+str(CHUNKSIZE*CHUNKNUMX)+"x"+str(CHUNKSIZE*CHUNKNUMY)+" Blocks")
 PLAYERREACH=BLOCKSIZE*5
 
 LEFTBOARDER=CHUNKSIZE*BLOCKSIZE+BLOCKSIZE/2
@@ -641,7 +641,7 @@ stopLeft=False
 movingRight=False
 movingLeft=False
 
-print("Loading images")
+print("Loading images...")
 
 loadTileImages()
 loadBackTileImages()
@@ -651,15 +651,15 @@ assembleHotbarBack()
 loadItemImages()
 loadLightingImages()
 
-print("Initailizing Objects")
+print("Initailizing Objects...")
 
 CAM=Cam(Map(CHUNKNUMX,CHUNKNUMY,CHUNKSIZE,BLOCKSIZE),(BLOCKSIZE*40-screenW/2,BLOCKSIZE*390))
 p=Player((BLOCKSIZE*40,BLOCKSIZE*395),100,4)
-print("Generating terrain")
+print("Generating terrain...")
 CAM.Map.generateTerrain(0)
 #CAM.Map.loadTerrain(0)
 
-print("Giving tools")
+print("Giving tools...")
 
 p.hotbar.append(Item("copperPickaxe",["pickaxe","tool"],1,106))
 p.hotbar.append(Item("copperAxe",["axe","tool"],1,107))
@@ -752,3 +752,4 @@ while 1:
    clock.tick(60)
    pygame.display.update()
    pygame.display.flip()
+
