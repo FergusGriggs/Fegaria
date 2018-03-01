@@ -1,7 +1,6 @@
 ###TODO###
 ---------IMPORTANT----------
 -add crafting
--add inventory
 -code health
 -add back block placement
 -----------LESSER-----------
