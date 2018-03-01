@@ -1,5 +1,7 @@
 # Fegaria
 
+BEWARE: MESSY CODE
+
 run the fegaria file with pygame installed
 and enjoy the wonders it brings. Idk
 
