@@ -1,5 +1,6 @@
 01/03/2018-v0.0.1-------------------------------------------------------
 -code cleaned up
+-world sizes added
 28/02/2018-v0.0.1-------------------------------------------------------
 -added item copperAxe
 -added item copperPickaxe
@@ -16,6 +17,7 @@
 -added block cobble
 -added block dirt
 -added block stone
+-added sand
 -added perlin noise world gen
 -added block trees
 -added item coal
