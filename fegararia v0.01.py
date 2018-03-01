@@ -512,17 +512,19 @@ class Player():
             if not pressed:
                for i in range(10):
                   if Rect(10+i*61,10,61,61).collidepoint(pygame.mouse.get_pos()):
-                     itemHolding=self.hotbar[i]
-                     itemPos=["h",i]
-                     self.hotbar[i]=None
-                     pressed=True
+                     if self.hotbar[i]!=None:
+                        itemHolding=self.hotbar[i]
+                        itemPos=["h",i]
+                        self.hotbar[i]=None
+                        pressed=True
                for i in range(10):
                   for j in range(4):
                      if Rect(10+i*61,70+j*61,61,61).collidepoint(pygame.mouse.get_pos()):
-                        itemPos=["i",(i,j)]
-                        itemHolding=self.inventory[i][j]
-                        self.inventory[i][j]=None
-                        pressed=True
+                        if self.inventory[i][j]!=None:
+                           itemPos=["i",(i,j)]
+                           itemHolding=self.inventory[i][j]
+                           self.inventory[i][j]=None
+                           pressed=True
       else:
          if pressed:
             pressed=False
