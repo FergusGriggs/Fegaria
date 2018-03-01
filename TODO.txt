@@ -11,5 +11,7 @@
 -code saving
 -add armour
 -add sword
+-add music
+-add sfx
 ------------BUGS------------
 -tree stump returns after removed when chunk is re-entered
