@@ -1,6 +1,9 @@
 01/03/2018-v0.0.1-------------------------------------------------------
 -code cleaned up
 -world sizes added
+-added silver ore
+-added silver block
+-added inventory
 28/02/2018-v0.0.1-------------------------------------------------------
 -added item copperAxe
 -added item copperPickaxe
