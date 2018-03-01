@@ -43,11 +43,19 @@ def loadHotbarImages():
          hotbarItemImages.append(surf)
 def assembleHotbarBack():
    global hotbarback
-   hotbarback=pygame.Surface((550,60))
-   pygame.draw.rect(hotbarback,(150,150,150),Rect(0,0,550,60),0)
-   for i in range(9):
+   hotbarback=pygame.Surface((610,60))
+   pygame.draw.rect(hotbarback,(150,150,150),Rect(0,0,610,60),0)
+   for i in range(10):
       pygame.draw.rect(hotbarback,(200,200,200),Rect(i*61,0,60,60),5)
    hotbarback.set_alpha(200)
+def assembleInventoryBack():
+   global inventoryback
+   inventoryback=pygame.Surface((610,243))
+   pygame.draw.rect(inventoryback,(150,150,150),Rect(0,0,610,243),0)
+   for i in range(10):
+      for j in range(4):
+         pygame.draw.rect(inventoryback,(200,200,200),Rect(i*61,j*61,60,60),5)
+   inventoryback.set_alpha(200)
 def loadCharacterAnimation():
    global characterFrames
    characterimages=pygame.transform.scale(pygame.image.load("Textures/player tilesheet.png"),(BLOCKSIZE*4,BLOCKSIZE*4))
@@ -132,22 +140,7 @@ class WorldItem():
                          if self.vel[1]>0:
                             self.vel=(self.vel[0]*0.5,0)
       if p.rect.colliderect(self.rect):
-         foundInHotBar=False
-         for i in range(len(p.hotbar)):
-            if p.hotbar[i].name==self.name:
-               if p.hotbar[i].amnt<999:
-                  p.hotbar[i].amnt+=self.amnt
-                  if p.hotbar[i].amnt>999:
-                     self.amnt=p.hotbar[i].amnt-999
-                     p.hotbar[i].amnt=999
-                  else:
-                     foundInHotBar=True
-                     break
-         if foundInHotBar==False:
-            if len(p.hotbar)<9:
-               p.hotbar.append(Item(self.name,self.tags,self.amnt,self.imgIndex))
-            else:
-               p.inventory.append(Item(self.name,self.tags,self.amnt,self.imgIndex))
+         p.addItem(self.name,self.tags,self.amnt,self.imgIndex)
          worldItems.remove(self)
    def draw(self):
       screen.blit(itemImages[self.imgIndex],(int(self.rect.left-CAM.pos[0]),int(self.rect.top-CAM.pos[1])))
@@ -204,7 +197,7 @@ class Map():
             mapData[j].append([val,backval])
       print("Spawning stone...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/6)):#surface stone
-         ore(1,6,None,(300,500),None)
+         ore(1,6,None,(300,425),None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/4)):#lower stone
          ore(1,6,None,(425,500),None,1)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/4)):#boarder stone
@@ -218,13 +211,15 @@ class Map():
          ore(34,4,None,None,None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/6)):#iron
          ore(33,3,None,None,None)
+      for i in range(int(CHUNKNUMX*CHUNKNUMY/8)):#silver
+         ore(35,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#gold
-         ore(32,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),None)
+         ore(32,3,None,(550,CHUNKNUMY*CHUNKSIZE-4),None)
       print("Making Caves...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#simple caves
          ore(0,10,None,None,None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#bigger lower caves
-         ore(0,17,None,(550,680),None)
+         ore(0,17,None,(550,CHUNKSIZE*CHUNKNUMY-17),None)
       print("Growing Trees...")
       for i in range(int(CHUNKNUMX*CHUNKSIZE/3.5)):
          tree((random.randint(0,CHUNKNUMX*CHUNKSIZE),200))
@@ -482,17 +477,28 @@ class Player():
       self.animationTick=0
       self.groundedTick=0
       self.grounded=False
-      self.hotbar=[]
-      self.inventory=[]
+      self.hotbar=[None for i in range(10)]
+      self.inventory=[[None for i in range(4)]for i in range(10)]
+      self.showInventory=False
       self.selectedItem=0
    def drawHotbar(self):
       screen.blit(hotbarback,(10,10))
-      for i in range(len(self.hotbar)):
-         screen.blit(hotbarItemImages[self.hotbar[i].imgIndex],(22+i*61,20))
-         if "tool" not in self.hotbar[i].tags:
-             text=font.render(str(self.hotbar[i].amnt),True,(255,255,255))
-             screen.blit(text,(50+i*61-text.get_width()/2,40))
+      for i in range(10):
+         if self.hotbar[i]!=None:
+            screen.blit(hotbarItemImages[self.hotbar[i].imgIndex],(22+i*61,20))
+            if "tool" not in self.hotbar[i].tags:
+                text=font.render(str(self.hotbar[i].amnt),True,(255,255,255))
+                screen.blit(text,(50+i*61-text.get_width()/2,40))
       pygame.draw.rect(screen,(255,255,0),Rect(10+self.selectedItem*61,10,60,60),5)
+   def drawInventory(self):
+      screen.blit(inventoryback,(10,80))
+      for i in range(10):
+         for j in range(4):
+            if self.inventory[i][j]!=None:
+               screen.blit(hotbarItemImages[self.inventory[i][j].imgIndex],(22+i*61,90+j*61))
+               if "tool" not in self.inventory[i][j].tags:
+                   text=font.render(str(self.inventory[i][j].amnt),True,(255,255,255))
+                   screen.blit(text,(50+i*61-text.get_width()/2,110+j*61))
    def updateAnimationFrame(self):
       if self.animationTick<0:
          self.animationTick+=7
@@ -502,6 +508,37 @@ class Player():
             self.animationFrame=0
       else:
          self.animationTick-=1
+   def addItem(self,name,tags,amnt,imgIndex):#check hotbar and inventory for item, then use empty spaces
+      for i in range(10):
+         if self.hotbar[i]!=None:
+            if self.hotbar[i].name==name:
+               if p.hotbar[i].amnt<999:
+                  p.hotbar[i].amnt+=amnt
+                  if p.hotbar[i].amnt>999:
+                     amnt=p.hotbar[i].amnt-999
+                     p.hotbar[i].amnt=999
+                  else:
+                     return
+      for i in range(10):
+         for j in range(4):
+            if self.inventory[i][j]!=None:
+               if self.inventory[i][j].name==name:
+                  if self.inventory[i][j].amnt<999:
+                     self.inventory[i][j].amnt+=amnt
+                     if self.inventory[i][j].amnt>999:
+                        amnt=self.inventory[i][j].amnt-999
+                        self.inventory[i][j].amnt=999
+                     else:
+                        return
+      for i in range(10):
+         if self.hotbar[i]==None:
+            self.hotbar[i]=Item(name,tags,amnt,imgIndex)
+            return
+      for i in range(10):
+         for j in range(4):
+            if self.inventory[i][j]==None:
+               self.inventory[i][j]=Item(name,tags,amnt,imgIndex)
+               return
    def update(self):
       global stopRight, stopLeft
       if self.grounded:
@@ -596,6 +633,7 @@ def getItemImgIndex(name):
    if name=="stone":return 16
    if name=="iron":return 210
    if name=="coal":return 194
+   if name=="silver":return 178
    if name=="gold":return 162
    if name=="copperPickaxe":return 106
    if name=="copperAxe":return 107
@@ -609,6 +647,7 @@ def getInfoFromVal(val):
    if val==33:return ["iron",["ore"]]
    if val==34:return ["coal",["material"]]
    if val==16:return ["cobble",["block"]]
+   if val==35:return ["silver",["ore"]]
 def getValFromName(name):
    if name=="stone":return 1
    if name=="dirt":return 2
@@ -620,6 +659,7 @@ def getIntegFromVal(val):
    if val==32:return 200
    if val==33:return 175
    if val==34:return 150
+   if val==35:return 150
    if val==16:return 100
    if val==19:return 500
    if val==20:return 500
@@ -630,11 +670,11 @@ clock=pygame.time.Clock()
 worldSize="tiny"
 
 worldSizes={
-   "tiny":[20,70],
-   "small":[100,80],
-   "medium":[200,120],
-   "large":[400,180],
-   "massive":[800,240],
+   "tiny":[20,70],#3 seconds to gen
+   "small":[100,80],#16 seconds to gen
+   "medium":[200,120],#50 seconds to gen
+   "large":[400,180],#146 seconds to gen
+   "massive":[800,240],#>146 seconds
    }
 
 CHUNKSIZE=10
@@ -665,6 +705,7 @@ loadBackTileImages()
 loadCharacterAnimation()
 loadHotbarImages()
 assembleHotbarBack()
+assembleInventoryBack()
 loadItemImages()
 loadLightingImages()
 
@@ -678,9 +719,9 @@ CAM.Map.generateTerrain(0)
 
 print("Giving tools...")
 
-p.hotbar.append(Item("copperPickaxe",["pickaxe","tool"],1,106))
-p.hotbar.append(Item("copperAxe",["axe","tool"],1,107))
-p.hotbar.append(Item("copperHammer",["hammer","tool"],1,108))
+p.hotbar[0]=Item("copperPickaxe",["pickaxe","tool"],1,106)
+p.hotbar[1]=Item("copperAxe",["axe","tool"],1,107)
+p.hotbar[2]=Item("copperHammer",["hammer","tool"],1,108)
 
 
 print("Done! (In",pygame.time.get_ticks()/1000," seconds!)")
@@ -701,22 +742,25 @@ while 1:
       CAM.pos=(RIGHTBOARDER+BLOCKSIZE/2-screenW,CAM.pos[1])
    if pygame.mouse.get_pressed()[0]:
       if distance((p.pos[0]-CAM.pos[0],p.pos[1]-CAM.pos[1]),m)<PLAYERREACH:
-          if p.selectedItem<len(p.hotbar):
+          if p.hotbar[p.selectedItem]!=None:
              tags=p.hotbar[p.selectedItem].tags
              CAM.damageBlock(5,m,tags)
              if "block" in tags:
                 if CAM.placeBlock(p.hotbar[p.selectedItem].name,m):
                    p.hotbar[p.selectedItem].amnt-=1
                    if p.hotbar[p.selectedItem].amnt<=0:
-                      p.hotbar.remove(p.hotbar[p.selectedItem])
+                      p.hotbar[p.selectedItem]=None
    CAM.update()
    p.update()
    updateWorldItems()
    screen.fill((135*globalLighting,206*globalLighting,235*globalLighting))
+   #screen.blit(overworldbkg,(0,0))
    CAM.render()
    p.draw()
    drawWorldItems()
    p.drawHotbar()
+   if p.showInventory:
+      p.drawInventory()
    fps=clock.get_fps()
    text=font.render(str(int(fps))+"fps  "+str(int(p.pos[0]//BLOCKSIZE))+"x "+str(int(p.pos[1]//BLOCKSIZE))+"y",True,(255,255,255))
    screen.blit(text,(1000,10))
@@ -727,8 +771,10 @@ while 1:
           sys.exit()
        if event.type==KEYDOWN:
           if event.key==K_ESCAPE:
-             pygame.quit()
-             sys.exit()
+             if p.showInventory:
+                p.showInventory=False
+             else:
+                p.showInventory=True
           if event.key==K_a:
              movingLeft=True
              stopLeft=False
@@ -750,6 +796,7 @@ while 1:
           if event.key==K_7:p.selectedItem=6
           if event.key==K_8:p.selectedItem=7
           if event.key==K_9:p.selectedItem=8
+          if event.key==K_0:p.selectedItem=9
        if event.type==KEYUP:
           if event.key==K_a:
              movingLeft=False
@@ -760,12 +807,12 @@ while 1:
              if p.selectedItem>0:
                 p.selectedItem-=1
              else:
-                p.selectedItem=8
+                p.selectedItem=9
           if event.button==5: 
-             if p.selectedItem<8:
+             if p.selectedItem<9:
                 p.selectedItem+=1
              else:
                 p.selectedItem=0
    clock.tick(60)
-   pygame.display.update()
+   #pygame.display.update()
    pygame.display.flip()
