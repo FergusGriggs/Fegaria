@@ -86,7 +86,6 @@ def loadBackTileImages():
          surf=pygame.Surface((BLOCKSIZE,BLOCKSIZE))
          surf.blit(backTilesheet,(-i*BLOCKSIZE,-j*BLOCKSIZE))
          backImages.append(surf)
-
 class Enemy():
    def __init__(self,pos,enemyType):
       self.pos=pos
@@ -499,6 +498,49 @@ class Player():
                if "tool" not in self.inventory[i][j].tags:
                    text=font.render(str(self.inventory[i][j].amnt),True,(255,255,255))
                    screen.blit(text,(50+i*61-text.get_width()/2,110+j*61))
+   def updateInventory(self):
+      global itemHolding, pressed, itemPos
+      if pygame.mouse.get_pressed()[0]:
+         if Rect(10,10,610,313).collidepoint(pygame.mouse.get_pos()):
+            if not pressed:
+               for i in range(10):
+                  if Rect(10+i*61,10,61,61).collidepoint(pygame.mouse.get_pos()):
+                     itemHolding=self.hotbar[i]
+                     itemPos=["h",i]
+                     self.hotbar[i]=None
+                     pressed=True
+               for i in range(10):
+                  for j in range(4):
+                     if Rect(10+i*61,70+j*61,61,61).collidepoint(pygame.mouse.get_pos()):
+                        itemPos=["i",(i,j)]
+                        itemHolding=self.inventory[i][j]
+                        self.inventory[i][j]=None
+                        pressed=True
+      else:
+         if pressed:
+            pressed=False
+            found=False
+            for i in range(10):
+               if Rect(10+i*61,10,61,61).collidepoint(pygame.mouse.get_pos()):
+                  if self.hotbar[i]==None:
+                     self.hotbar[i]=itemHolding
+                  else:
+                     putItemBack(self.hotbar[i])
+                     self.hotbar[i]=itemHolding
+                  found=True
+                  break
+            if not found:
+               for i in range(10):
+                  for j in range(4):
+                     if Rect(10+i*61,70+j*61,61,61).collidepoint(pygame.mouse.get_pos()):
+                        if self.inventory[i][j]==None:
+                           self.inventory[i][j]=itemHolding
+                        else:
+                           putItemBack(self.inventory[i][j])
+                           self.inventory[i][j]=itemHolding
+                        found=True
+            if not found:
+               putItemBack(itemHolding)
    def updateAnimationFrame(self):
       if self.animationTick<0:
          self.animationTick+=7
@@ -603,6 +645,11 @@ class Player():
       screen.blit(characterFrames[self.animationFrame+self.direction*4],(int(self.rect.left-CAM.pos[0]),int(self.rect.top-CAM.pos[1])))
 def distance(p1,p2):
    return math.sqrt((p2[0]-p1[0])**2+(p2[1]-p1[1])**2)
+def putItemBack(item):
+   if itemPos[0]=="i":
+      p.inventory[itemPos[1][0]][itemPos[1][1]]=item
+   else:
+      p.hotbar[itemPos[1]]=item
 def tree(pos):
    global mapData
    for i in range(1000):
@@ -698,6 +745,10 @@ stopLeft=False
 movingRight=False
 movingLeft=False
 
+pressed=False
+itemHolding=None
+itemPos=[]
+
 print("Loading images...")
 
 loadTileImages()
@@ -710,9 +761,9 @@ loadItemImages()
 loadLightingImages()
 
 print("Initailizing Objects...")
-
-CAM=Cam(Map(CHUNKNUMX,CHUNKNUMY,CHUNKSIZE,BLOCKSIZE),(BLOCKSIZE*CHUNKNUMX*CHUNKSIZE/2-screenW/2,BLOCKSIZE*390))
-p=Player((BLOCKSIZE*CHUNKNUMX*CHUNKSIZE/2,BLOCKSIZE*395),100,4)
+spawnPoint=(BLOCKSIZE*CHUNKNUMX*CHUNKSIZE/2,BLOCKSIZE*395)
+CAM=Cam(Map(CHUNKNUMX,CHUNKNUMY,CHUNKSIZE,BLOCKSIZE),(spawnPoint[0]-screenW/2,spawnPoint[1]))
+p=Player(spawnPoint,100,4)
 print("Generating terrain...")
 CAM.Map.generateTerrain(0)
 #CAM.Map.loadTerrain(0)
@@ -724,7 +775,7 @@ p.hotbar[1]=Item("copperAxe",["axe","tool"],1,107)
 p.hotbar[2]=Item("copperHammer",["hammer","tool"],1,108)
 
 
-print("Done! (In",pygame.time.get_ticks()/1000," seconds!)")
+print("Done! (In",pygame.time.get_ticks()/1000,"seconds!)")
 while 1:
    gameTick=pygame.time.get_ticks()
    CAM.pos=(CAM.pos[0]+(p.pos[0]-screenW/2-CAM.pos[0])*0.05,CAM.pos[1]+(p.pos[1]-screenH/2-CAM.pos[1])*0.05)
@@ -761,6 +812,7 @@ while 1:
    p.drawHotbar()
    if p.showInventory:
       p.drawInventory()
+      p.updateInventory()
    fps=clock.get_fps()
    text=font.render(str(int(fps))+"fps  "+str(int(p.pos[0]//BLOCKSIZE))+"x "+str(int(p.pos[1]//BLOCKSIZE))+"y",True,(255,255,255))
    screen.blit(text,(1000,10))
@@ -784,6 +836,8 @@ while 1:
           if event.key==K_f:
              for i in range(20):
                 WorldItem("cobble",["material","block"],5,(p.pos[0],p.pos[1]-200))
+          if event.key==K_h:
+             p.pos=spawnPoint
           if event.key==K_w or event.key==K_SPACE:
              if p.grounded:
                 p.vel=(p.vel[0],-BLOCKSIZE/4)
