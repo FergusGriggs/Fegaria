@@ -270,7 +270,6 @@ class Map():
       camj=int((pos[0]+screenW/2)//(BLOCKSIZE*CHUNKSIZE))
       cami=int((pos[1]+screenH/2)//(BLOCKSIZE*CHUNKSIZE))
       for chunk in self.focusChunks:
-         #print(cami,chunk)
          if chunk[0]<cami-2 or chunk[0]>cami+2:
             self.chunks[chunk[0]][chunk[1]].loaded=False
             self.chunks[chunk[0]][chunk[1]].surface=None
@@ -486,7 +485,7 @@ class Cam():
                elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE+1][0]!=0:canPlace=True
                if canPlace:
                    if val==85:
-                      chestData.append([((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE),[[Item("wood",["block","material"],1,4) for i in range(4)] for i in range(7)]])
+                      chestData.append([((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE),[[None for i in range(4)] for i in range(7)]])
                    CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val=val
                    integ=getIntegFromVal(val)
                    CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity=integ
@@ -555,6 +554,7 @@ class Player():
       self.furnaceInRange=False
       self.chestOpen=False
       self.chestItems=None
+      self.craftItemName=""
    def drawHotbar(self):
       screen.blit(hotbarback,(10,10))
       for i in range(10):
@@ -624,6 +624,8 @@ class Player():
        for i in range(len(self.craftableItems)):
            screen.blit(itemImages[self.craftableItems[i][0].imgIndex],(20,10+self.craftingMenuPos+i*60))
        pygame.draw.rect(screen,(200,200,200),Rect(10,600,55,55),3)
+       text=font.render(self.craftItemName,True,(255,255,255))
+       screen.blit(text,(75,590))
    def drawInventory(self):
       screen.blit(inventoryback,(10,80))
       m=pygame.mouse.get_pos()
@@ -698,6 +700,7 @@ class Player():
                if Rect(10+i*61,10,61,61).collidepoint(pygame.mouse.get_pos()):
                   if self.hotbar[i]==None:
                      self.hotbar[i]=itemHolding
+                     self.updateCraftableItems()
                   else:
                      if self.hotbar[i].name==itemHolding.name:
                         if "tool" not in self.hotbar[i].tags:
@@ -716,6 +719,7 @@ class Player():
                      if Rect(10+i*61,70+j*61,61,61).collidepoint(pygame.mouse.get_pos()):
                         if self.inventory[i][j]==None:
                            self.inventory[i][j]=itemHolding
+                           self.updateCraftableItems()
                         else:
                            if self.inventory[i][j].name==itemHolding.name:
                               if "tool" not in self.inventory[i][j].tags:
@@ -734,6 +738,7 @@ class Player():
                         if Rect(130+i*61,330+j*61,61,61).collidepoint(pygame.mouse.get_pos()):
                            if self.chestItems[i][j]==None:
                               self.chestItems[i][j]=itemHolding
+                              self.updateCraftableItems()
                            else:
                               if self.chestItems[i][j].name==itemHolding.name:
                                  if "tool" not in self.chestItems[i][j].tags:
@@ -747,6 +752,7 @@ class Player():
                            found=True
             if not found:
                putItemBack(itemHolding)
+               self.updateCraftableItems()
    def updateAnimationFrame(self):
       if self.animationTick<0:
          self.animationTick+=7
@@ -758,7 +764,14 @@ class Player():
          self.animationTick-=1
    def changeItem(self,name,tags,amnt,imgIndex):#check hotbar and inventory for item, then use empty spaces
       if amnt>0:
-          addRecentPickup(name,amnt)
+          if name=="gold coin":
+             addRecentPickup(name,amnt,(255,255,0))
+          elif name=="silver coin":
+             addRecentPickup(name,amnt,(176,176,176))
+          elif name=="copper coin":
+             addRecentPickup(name,amnt,(151,118,55))
+          else:
+             addRecentPickup(name,amnt)
       for i in range(10):
          if self.hotbar[i]!=None:
             if self.hotbar[i].name==name:
@@ -804,16 +817,19 @@ class Player():
               elif self.craftingMenuPos%60>30.2:
                   self.craftingMenuPos+=(60-self.craftingMenuPos%60)/2
               if len(self.craftableItems)>0 and not pressed:
-                  if pygame.mouse.get_pressed()[0]:
-                      if Rect(10,600,55,55).collidepoint(pygame.mouse.get_pos()):
-                          pressed=True
-                          itemIndex=int(abs(self.craftingMenuPos-600)/60)
-                          item=self.craftableItems[itemIndex][0]
-                          itemHolding=Item(item.name,item.tags,item.amnt,item.imgIndex)
-                          for i in range(len(self.craftableItems[itemIndex][1])):
-                              item=self.craftableItems[itemIndex][1][i]
-                              p.changeItem(item[0],item[1],-item[2],item[3])
-                          p.updateCraftableItems()
+                 itemIndex=int(round(abs(self.craftingMenuPos-600)/60))
+                 self.craftItemName=self.craftableItems[itemIndex][0].name
+                 if pygame.mouse.get_pressed()[0]:
+                    if Rect(10,600,55,55).collidepoint(pygame.mouse.get_pos()):
+                       pressed=True
+                       item=self.craftableItems[itemIndex][0]
+                       itemHolding=Item(item.name,item.tags,item.amnt,item.imgIndex)
+                       for i in range(len(self.craftableItems[itemIndex][1])):
+                           item=self.craftableItems[itemIndex][1][i]
+                           p.changeItem(item[0],item[1],-item[2],item[3])
+                       p.updateCraftableItems()
+              else:
+                 self.craftItemName=""
           else:
               self.craftingSlotDelay-=1
           self.craftingMenuVel*=0.9
@@ -837,11 +853,15 @@ class Player():
             self.direction=0
             self.updateAnimationFrame()
             self.vel=(self.vel[0]+1,self.vel[1])
+            self.chestOpen=False
+            self.showInventory=False
       if movingLeft:
          if not stopLeft:
             self.direction=1
             self.updateAnimationFrame()
             self.vel=(self.vel[0]-1,self.vel[1])
+            self.chestOpen=False
+            self.showInventory=False
       if not movingLeft and not movingRight:
          self.animationFrame=0
       if self.vel[0]<-self.movespeed:
@@ -964,6 +984,9 @@ def getItemImgIndex(name):
    if name=="cobble backwall":return 17
    if name=="cobble furnace":return 61
    if name=="wooden chest":return 85
+   if name=="gold coin":return 54
+   if name=="silver coin":return 55
+   if name=="copper coin":return 56
 def getInfoFromVal(val):
    if val==1:return ["cobble",["material","block"]]
    if val==4:return ["wood",["material","block"]]
@@ -1019,21 +1042,22 @@ def drawRecentPickups():
       else:
          font=pygame.font.SysFont("Fixedsys",28)
       if recentPickups[i][1]>1:
-         text=font.render(recentPickups[i][0]+" ("+str(recentPickups[i][1])+")",False,(255,255,255))
+         text=font.render(recentPickups[i][0]+" ("+str(recentPickups[i][1])+")",False,recentPickups[i][4])
       else:
-         text=font.render(recentPickups[i][0],False,(255,255,255))
+         text=font.render(recentPickups[i][0],False,recentPickups[i][4])
       if recentPickups[i][2]<=25:
          text.set_alpha(recentPickups[i][2]/25*255)
       screen.blit(text,(recentPickups[i][3][0]-CAM.pos[0]-text.get_width()/2,recentPickups[i][3][1]-CAM.pos[1]-75-i*30))
-def addRecentPickup(name,amnt):
+def addRecentPickup(name,amnt,colour=(255,255,255)):
    global recentPickups
    for i in range(len(recentPickups)):
       if recentPickups[i][0]==name:
          recentPickups[i][1]+=amnt
          recentPickups[i][2]=100
          recentPickups[i][3]=p.pos
+         recentPickups[i][4]=colour
          return
-   recentPickups.append([name,amnt,100,p.pos])
+   recentPickups.append([name,amnt,100,p.pos,colour])
    
 transparentBlocks=[84,5,85]
 uncollidableBlocks=[0,84,61,85]
@@ -1059,6 +1083,7 @@ furnaceRecipies=[
    ["copper bar",["material"],1,227,[["copper",["ore"],3,226]]],
    ["silver bar",["material"],1,179,[["silver",["ore"],3,178]]],
    ["gold bar",["material"],1,163,[["gold",["ore"],3,162]]],
+   ["stone",["block","material"],1,1,[["cobble",["block","material"],1,16]]],
    ]
 
 
@@ -1171,10 +1196,7 @@ while 1:
          CAM.altclickBlock(m,tags)
    else:
       altpressed=False
-   if pygame.mouse.get_pressed()[1]:
-      CAM.placeBlock("wooden chest",["block","chest"],m)
    CAM.update()
-   #if not p.showInventory:
    p.update()
    updateWorldItems()
    updateRecentPickups()
@@ -1214,20 +1236,11 @@ while 1:
              stopRight=False
           if event.key==K_s:
              movingDown=True
-          if event.key==K_u:
-             for i in range(19):
-                WorldItem("wood backwall",["block","backwall"],5,(p.pos[0],p.pos[1]-200))
-          if event.key==K_i:
-             for i in range(19):
-                WorldItem("wood platform",["material","block"],5,(p.pos[0],p.pos[1]-200))
-          if event.key==K_o:
-             for i in range(19):
-                WorldItem("crafting table",["material","block"],5,(p.pos[0],p.pos[1]-200))
-          if event.key==K_p:
-             for i in range(19):
-                WorldItem("cobble backwall",["block","backwall"],5,(p.pos[0],p.pos[1]-200))
           if event.key==K_h:
              p.pos=spawnPoint
+             print("respawning...")
+          if event.key==K_m:
+             WorldItem("gold coin",["coin"],1,(p.pos[0],p.pos[1]-200))
           if event.key==K_w or event.key==K_SPACE:
              if p.grounded:
                 p.vel=(p.vel[0],-BLOCKSIZE/4)
