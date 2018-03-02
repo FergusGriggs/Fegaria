@@ -679,16 +679,17 @@ class Player():
                            itemHolding=self.inventory[i][j]
                            self.inventory[i][j]=None
                            pressed=True
-         if Rect(130,330,420,240).collidepoint(pygame.mouse.get_pos()):
-            if not pressed:
-               for i in range(10):
-                  for j in range(4):
-                     if Rect(130+i*61,330+j*61,61,61).collidepoint(m):
-                        if self.chestItems[i][j]!=None:
-                           itemPos=["c",(i,j)]
-                           itemHolding=self.chestItems[i][j]
-                           self.chestItems[i][j]=None
-                           pressed=True
+         if self.chestOpen:
+            if Rect(130,330,420,240).collidepoint(pygame.mouse.get_pos()):
+               if not pressed:
+                  for i in range(10):
+                     for j in range(4):
+                        if Rect(130+i*61,330+j*61,61,61).collidepoint(m):
+                           if self.chestItems[i][j]!=None:
+                              itemPos=["c",(i,j)]
+                              itemHolding=self.chestItems[i][j]
+                              self.chestItems[i][j]=None
+                              pressed=True
       else:
          if pressed:
             pressed=False
@@ -910,7 +911,6 @@ def distance(p1,p2):
    return math.sqrt((p2[0]-p1[0])**2+(p2[1]-p1[1])**2)
 def putItemBack(item):
     global itemPos
-    print(itemPos)
     if itemPos!=None:
        if itemPos[0]=="i":
           p.inventory[itemPos[1][0]][itemPos[1][1]]=item
