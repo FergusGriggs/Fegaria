@@ -1,7 +1,7 @@
 import pygame, sys, math, time, os, random, noise
 from pygame.locals import *
 pygame.init()
-VERSION=0.01
+VERSION=0.02
 screenObj=pygame.display.Info()
 screenW=screenObj.current_w
 screenH=screenObj.current_h
@@ -10,6 +10,12 @@ screen=pygame.display.set_mode((screenW,screenH))#,FULLSCREEN)
 pygame.display.set_caption('fegararia'+" v"+str(VERSION))
 
 overworldbkg=pygame.transform.scale(pygame.image.load("Textures/overworldbkg.png"),(screenW,screenH))
+
+#when saving the following need to be saved:
+#Player class
+#mapData array
+#chest Data array
+
 def loadLightingImages():
    specialLightingTilesheet=pygame.transform.scale(pygame.image.load("Textures/special lighting tilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
    global specialLightingImages
@@ -55,6 +61,14 @@ def assembleInventoryBack():
       for j in range(4):
          pygame.draw.rect(inventoryback,(200,200,200),Rect(i*61,j*61,60,60),5)
    inventoryback.set_alpha(200)
+def assembleChestBack():
+   global chestBack
+   chestBack=pygame.Surface((430,240))
+   pygame.draw.rect(chestBack,(150,150,150),Rect(0,0,430,240),0)
+   for i in range(7):
+      for j in range(4):
+         pygame.draw.rect(chestBack,(200,200,200),Rect(2+i*61,2+j*59,60,60),5)
+   chestBack.set_alpha(200)
 def assembleCraftingBack():
     global craftingBack
     craftingBack=pygame.Surface((55,510))
@@ -455,7 +469,7 @@ class Cam():
                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
       except:print("mouse off screen")
    def placeBlock(self,name,tags,screenPos):
-      global mapData
+      global mapData, chestData
       actualPos=(screenPos[0]+int(self.pos[0]),screenPos[1]+int(self.pos[1]))
       blockpos=(actualPos[0]//BLOCKSIZE,actualPos[1]//BLOCKSIZE)
       if "backwall" not in tags:
@@ -471,6 +485,8 @@ class Cam():
                elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE-1][0]!=0:canPlace=True
                elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE+1][0]!=0:canPlace=True
                if canPlace:
+                   if val==85:
+                      chestData.append([((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE),[[Item("wood",["block","material"],1,4) for i in range(4)] for i in range(7)]])
                    CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val=val
                    integ=getIntegFromVal(val)
                    CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity=integ
@@ -487,17 +503,24 @@ class Cam():
             if mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE-1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]!=0:canPlace=True
             elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE+1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]!=0:canPlace=True
             elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE-1][1]!=0:canPlace=True
-            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE+1][1]!=0:canPlace=True
+            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE+1][1]!=0:canPlace=True 
             if canPlace:
-                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=val
-                integ=getIntegFromVal(val)
-                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity=integ
-                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].maxbackintegrity=integ
-                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-                mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]=val
-                return True
+               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=val
+               integ=getIntegFromVal(val)
+               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity=integ
+               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].maxbackintegrity=integ
+               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+               mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]=val
+               return True
       return False
-      
+   def altclickBlock(self,screenPos,tags):
+      actualPos=(screenPos[0]+int(self.pos[0]),screenPos[1]+int(self.pos[1]))
+      pos=((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE)
+      if mapData[pos[1]][pos[0]][0]==85:
+         for i in range(len(chestData)):
+            if chestData[i][0]==pos:
+               items=chestData[i][1]
+               p.openChest(pos,items)
    def render(self):
       self.Map.draw((self.pos[0],self.pos[1]))
 def drawHoldingItem():
@@ -530,6 +553,8 @@ class Player():
       self.craftingSlotDelay=0
       self.craftingTableInRange=False
       self.furnaceInRange=False
+      self.chestOpen=False
+      self.chestItems=None
    def drawHotbar(self):
       screen.blit(hotbarback,(10,10))
       for i in range(10):
@@ -620,6 +645,18 @@ class Player():
                   if Rect(10+i*61,70+j*61,61,61).collidepoint(m):
                       text=font.render(str(self.inventory[i][j].name),True,(255,255,255))
                       screen.blit(text,(m[0]-text.get_width()/2,m[1]-20))
+      if self.chestOpen:
+         screen.blit(chestBack,(130,330))
+         for i in range(7):
+            for j in range(4):
+               if self.chestItems[i][j]!=None:
+                  screen.blit(hotbarItemImages[self.chestItems[i][j].imgIndex],(140+i*61,340+j*61))
+                  if "tool" not in self.chestItems[i][j].tags:
+                      text=font.render(str(self.chestItems[i][j].amnt),True,(255,255,255))
+                      screen.blit(text,(170+i*61-text.get_width()/2,360+j*61))
+                  if Rect(130+i*61,330+j*61,61,61).collidepoint(m):
+                     text=font.render(str(self.chestItems[i][j].name),True,(255,255,255))
+                     screen.blit(text,(m[0]-text.get_width()/2,m[1]-20))
       if pressed:
          drawHoldingItem()
    def updateInventory(self):
@@ -641,6 +678,16 @@ class Player():
                            itemPos=["i",(i,j)]
                            itemHolding=self.inventory[i][j]
                            self.inventory[i][j]=None
+                           pressed=True
+         if Rect(130,330,420,240).collidepoint(pygame.mouse.get_pos()):
+            if not pressed:
+               for i in range(10):
+                  for j in range(4):
+                     if Rect(130+i*61,330+j*61,61,61).collidepoint(m):
+                        if self.chestItems[i][j]!=None:
+                           itemPos=["c",(i,j)]
+                           itemHolding=self.chestItems[i][j]
+                           self.chestItems[i][j]=None
                            pressed=True
       else:
          if pressed:
@@ -679,6 +726,24 @@ class Player():
                               putItemBack(self.inventory[i][j])
                               self.inventory[i][j]=itemHolding
                         found=True
+            if not found:
+               if self.chestOpen:
+                  for i in range(7):
+                     for j in range(4):
+                        if Rect(130+i*61,330+j*61,61,61).collidepoint(pygame.mouse.get_pos()):
+                           if self.chestItems[i][j]==None:
+                              self.chestItems[i][j]=itemHolding
+                           else:
+                              if self.chestItems[i][j].name==itemHolding.name:
+                                 if "tool" not in self.chestItems[i][j].tags:
+                                    self.chestItems[i][j].amnt+=itemHolding.amnt
+                                    if self.chestItems[i][j].amnt>999:
+                                       self.changeItem(self.chestItems[i][j].name,self.chestItems[i][j].tags,self.chestItems[i][j].amnt-999,self.chestItems[i][j].imgIndex)
+                                       self.chestItems[i][j].amnt=999
+                              else:
+                                 putItemBack(self.chestItems[i][j])
+                                 self.chestItems[i][j]=itemHolding
+                           found=True
             if not found:
                putItemBack(itemHolding)
    def updateAnimationFrame(self):
@@ -825,25 +890,34 @@ class Player():
                                          self.pos=(self.pos[0],blockrect.top-BLOCKSIZE)
                                          if self.vel[1]>0:
                                             self.vel=(self.vel[0]*0.5,0)
+                                         self.grounded=True
                             else:
                                self.pos=(self.pos[0],blockrect.top-BLOCKSIZE)
                                if self.vel[1]>0:
                                   self.vel=(self.vel[0]*0.5,0)
-                            self.grounded=True
+                               self.grounded=True
             except:print("player out of map")
       self.rect.left=self.pos[0]-BLOCKSIZE/2
       self.rect.top=self.pos[1]-BLOCKSIZE
+   def openChest(self,pos,items):
+      self.chestOpen=True
+      self.chestItems=items
+      self.showInventory=True
+      self.updateCraftableItems()
    def draw(self):
       screen.blit(characterFrames[self.animationFrame+self.direction*4],(int(self.rect.left-CAM.pos[0]),int(self.rect.top-CAM.pos[1])))
 def distance(p1,p2):
    return math.sqrt((p2[0]-p1[0])**2+(p2[1]-p1[1])**2)
 def putItemBack(item):
     global itemPos
+    print(itemPos)
     if itemPos!=None:
        if itemPos[0]=="i":
           p.inventory[itemPos[1][0]][itemPos[1][1]]=item
-       else:
+       elif itemPos[0]=="h":
           p.hotbar[itemPos[1]]=item
+       else:
+          p.chestItems[itemPos[1][0]][itemPos[1][1]]=item
     else:
         p.changeItem(item.name,item.tags,item.amnt,item.imgIndex)
     itemPos=None
@@ -889,6 +963,7 @@ def getItemImgIndex(name):
    if name=="wood backwall":return 20
    if name=="cobble backwall":return 17
    if name=="cobble furnace":return 61
+   if name=="wooden chest":return 85
 def getInfoFromVal(val):
    if val==1:return ["cobble",["material","block"]]
    if val==4:return ["wood",["material","block"]]
@@ -902,6 +977,7 @@ def getInfoFromVal(val):
    if val==51:return ["copper",["ore"]]
    if val==84:return ["crafting table",["block"]]
    if val==61:return ["cobble furnace",["block"]]
+   if val==85:return ["wooden chest",["block","chest"]]
 def getValFromName(name):
    if name=="stone":return 1
    if name=="dirt":return 2
@@ -912,6 +988,7 @@ def getValFromName(name):
    if name=="wood backwall":return 4
    if name=="cobble backwall":return 16
    if name=="cobble furnace":return 61
+   if name=="wooden chest":return 85
 def getIntegFromVal(val):
    if val==1:return 100
    if val==2 or val==3:return 75
@@ -927,6 +1004,7 @@ def getIntegFromVal(val):
    if val==84:return 200
    if val==5:return 80
    if val==61:return 200
+   if val==85:return 200
 def updateRecentPickups():
    global recentPickups
    for pickup in recentPickups:
@@ -957,14 +1035,15 @@ def addRecentPickup(name,amnt):
          return
    recentPickups.append([name,amnt,100,p.pos])
    
-transparentBlocks=[84,5]
-uncollidableBlocks=[0,84,61]
+transparentBlocks=[84,5,85]
+uncollidableBlocks=[0,84,61,85]
 
 font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
 clock=pygame.time.Clock()
 
 basicRecipies=[#[out item name,out item tags,out item quantity,out item imgIndex,[in items, in item quianties]]
    ["wood",["block","material"],1,4,[["wood backwall",["block","backwall"],4,4]]],
+   ["wood",["block","material"],1,4,[["wood platform",["block"],1,84]]],
    ["cobble",["block","material"],1,16,[["cobble backwall",["block","backwall"],4,18]]],
    ["wood platform",["block"],2,5,[["wood",["block","material"],1,4]]],
    ["crafting table",["block"],1,84,[["wood",["block","material"],10,4]]],
@@ -973,7 +1052,7 @@ tableRecipies=[
    ["wood backwall",["block","backwall"],4,20,[["wood",["block","material"],1,4]]],
    ["cobble backwall",["block","backwall"],4,17,[["cobble",["block","material"],1,16]]],
    ["cobble furnace",["block","furnace"],1,61,[["coal",["ore","material"],4,196],["cobble",["block","material"],10,16]]],
-   #["wooden chest",["block","chest"],1,16,[["wood",["block","material"],20,4],["iron bar",1]]],
+   ["wooden chest",["block","chest"],1,85,[["wood",["block","material"],20,4],["iron bar",["material"],2,211]]],
    ]
 furnaceRecipies=[
    ["iron bar",["material"],1,211,[["iron",["ore"],3,210]]],
@@ -1009,6 +1088,7 @@ globalLighting=1
 
 worldItems=[]
 recentPickups=[]#name,amnt,life
+chestData=[]
 
 stopRight=False
 stopLeft=False
@@ -1017,6 +1097,7 @@ movingLeft=False
 movingDown=False
 movingDownTimer=0
 pressed=False
+altpressed=False
 itemHolding=None
 itemPos=None
 
@@ -1029,6 +1110,7 @@ loadHotbarImages()
 assembleHotbarBack()
 assembleInventoryBack()
 assembleCraftingBack()
+assembleChestBack()
 loadItemImages()
 loadLightingImages()
 
@@ -1046,7 +1128,7 @@ print("Giving tools...")
 p.hotbar[0]=Item("copperPickaxe",["pickaxe","tool"],1,106)
 p.hotbar[1]=Item("copperAxe",["axe","tool"],1,107)
 p.hotbar[2]=Item("copperHammer",["hammer","tool"],1,108)
-p.hotbar[2]=Item("copperSword",["weapon","tool"],1,109)
+p.hotbar[3]=Item("copperSword",["weapon","tool"],1,109)
 
 print("Done! (In",pygame.time.get_ticks()/1000,"seconds!)")
 while 1:
@@ -1060,8 +1142,8 @@ while 1:
    CAM.pos=(CAM.pos[0]+(p.pos[0]-screenW/2-CAM.pos[0])*0.05,CAM.pos[1]+(p.pos[1]-screenH/2-CAM.pos[1])*0.05)
    rel=pygame.mouse.get_rel()
    m=pygame.mouse.get_pos()
-   if pygame.mouse.get_pressed()[2]:    
-      CAM.pos=(CAM.pos[0]-rel[0],CAM.pos[1]-rel[1])
+##   if pygame.mouse.get_pressed()[2]:    
+##      CAM.pos=(CAM.pos[0]-rel[0],CAM.pos[1]-rel[1])
    if p.pos[0]<LEFTBOARDER:
       p.pos=(LEFTBOARDER,p.pos[1])
    elif p.pos[0]>RIGHTBOARDER:
@@ -1080,9 +1162,19 @@ while 1:
                    p.hotbar[p.selectedItem].amnt-=1
                    if p.hotbar[p.selectedItem].amnt<=0:
                       p.hotbar[p.selectedItem]=None
+   if pygame.mouse.get_pressed()[2]:
+      if not altpressed:
+         altpressed=True
+         if p.hotbar[p.selectedItem]!=None:
+            tags=p.hotbar[p.selectedItem].tags
+         else:tags=[]
+         CAM.altclickBlock(m,tags)
+   else:
+      altpressed=False
    if pygame.mouse.get_pressed()[1]:
-      CAM.placeBlock("wood backwall",["block","backwall"],m)
+      CAM.placeBlock("wooden chest",["block","chest"],m)
    CAM.update()
+   #if not p.showInventory:
    p.update()
    updateWorldItems()
    updateRecentPickups()
@@ -1109,6 +1201,8 @@ while 1:
           if event.key==K_ESCAPE:
              if p.showInventory:
                 p.showInventory=False
+                p.chestItems=None
+                p.chestOpen=False
              else:
                 p.showInventory=True
                 p.updateCraftableItems()
