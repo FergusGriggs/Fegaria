@@ -10,7 +10,6 @@ screen=pygame.display.set_mode((screenW,screenH))#,FULLSCREEN)
 pygame.display.set_caption('fegararia'+" v"+str(VERSION))
 
 overworldbkg=pygame.transform.scale(pygame.image.load("Textures/overworldbkg.png"),(screenW,screenH))
-
 def loadLightingImages():
    specialLightingTilesheet=pygame.transform.scale(pygame.image.load("Textures/special lighting tilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
    global specialLightingImages
@@ -56,6 +55,12 @@ def assembleInventoryBack():
       for j in range(4):
          pygame.draw.rect(inventoryback,(200,200,200),Rect(i*61,j*61,60,60),5)
    inventoryback.set_alpha(200)
+def assembleCraftingBack():
+    global craftingBack
+    craftingBack=pygame.Surface((55,510))
+    pygame.draw.rect(craftingBack,(150,150,150),Rect(0,0,55,510),0)
+    pygame.draw.rect(craftingBack,(200,200,200),Rect(2,2,51,506),5)
+    inventoryback.set_alpha(200)
 def loadCharacterAnimation():
    global characterFrames
    characterimages=pygame.transform.scale(pygame.image.load("Textures/player tilesheet.png"),(BLOCKSIZE*4,BLOCKSIZE*4))
@@ -105,6 +110,10 @@ class WorldItem():
       worldItems.append(self)
    def update(self):
       global worldItems
+      if self.age>10000:
+          worldItems.remove(self)
+      else:
+          self.age+=1
       if distance(self.pos,p.pos)<BLOCKSIZE*3:
          self.vel=((p.pos[0]-self.pos[0])/15,(p.pos[1]-self.pos[1])/15)
       self.vel=(self.vel[0],self.vel[1]+0.2)
@@ -139,7 +148,7 @@ class WorldItem():
                          if self.vel[1]>0:
                             self.vel=(self.vel[0]*0.5,0)
       if p.rect.colliderect(self.rect):
-         p.addItem(self.name,self.tags,self.amnt,self.imgIndex)
+         p.changeItem(self.name,self.tags,self.amnt,self.imgIndex)
          worldItems.remove(self)
    def draw(self):
       screen.blit(itemImages[self.imgIndex],(int(self.rect.left-CAM.pos[0]),int(self.rect.top-CAM.pos[1])))
@@ -208,8 +217,10 @@ class Map():
       print("Spawning Ores...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/3)):#coal
          ore(34,4,None,None,None)
-      for i in range(int(CHUNKNUMX*CHUNKNUMY/6)):#iron
+      for i in range(int(CHUNKNUMX*CHUNKNUMY/7)):#iron
          ore(33,3,None,None,None)
+      for i in range(int(CHUNKNUMX*CHUNKNUMY/7)):#copper
+         ore(51,3,None,None,None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/8)):#silver
          ore(35,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),None)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#gold
@@ -322,6 +333,14 @@ class Chunk():
       self.surface.set_colorkey((255,0,255))
       for i in range(len(self.blocks)):
          for j in range(len(self.blocks[i])):
+            if self.blocks[i][j].val in transparentBlocks:
+               if self.blocks[i][j].backval>0:
+                  self.surface.blit(backImages[self.blocks[i][j].backval],(self.BLOCKSIZE*i,self.BLOCKSIZE*j))
+                  if self.blocks[i][j].backintegrity!=self.blocks[i][j].maxbackintegrity:
+                     if self.blocks[i][j].backval==19 or self.blocks[i][j].backval==20:img=images[240+math.floor((self.blocks[i][j].maxbackintegrity-self.blocks[i][j].backintegrity)/self.blocks[i][j].maxbackintegrity*3)]
+                     else:img=images[240+math.floor((self.blocks[i][j].maxbackintegrity-self.blocks[i][j].backintegrity)/self.blocks[i][j].maxbackintegrity*9)]
+                     img.set_alpha(200)
+                     self.surface.blit(img,(self.BLOCKSIZE*i,self.BLOCKSIZE*j))
             if self.blocks[i][j].val>0:
                self.surface.blit(images[self.blocks[i][j].val],(self.BLOCKSIZE*i,self.BLOCKSIZE*j))
                if self.blocks[i][j].integrity!=self.blocks[i][j].maxintegrity:
@@ -335,17 +354,17 @@ class Chunk():
                   else:img=images[240+math.floor((self.blocks[i][j].maxbackintegrity-self.blocks[i][j].backintegrity)/self.blocks[i][j].maxbackintegrity*9)]
                   img.set_alpha(200)
                   self.surface.blit(img,(self.BLOCKSIZE*i,self.BLOCKSIZE*j))
-            if self.blocks[i][j].light!=1 and self.blocks[i][j].backval!=0:
-               if self.blocks[i][j].backval==19:
-                  lightimg=specialLightingImages[0]
-               elif self.blocks[i][j].backval==20:
-                  lightimg=specialLightingImages[1]
-               elif self.blocks[i][j].backval==21:
-                  lightimg=specialLightingImages[2]
-               else:
-                  lightimg=pygame.Surface((self.BLOCKSIZE,self.BLOCKSIZE))
-               lightimg.set_alpha((1-self.blocks[i][j].light)*255)
-               self.surface.blit(lightimg,(self.BLOCKSIZE*i,self.BLOCKSIZE*j))
+##            if self.blocks[i][j].light!=1 and self.blocks[i][j].backval!=0:
+##               if self.blocks[i][j].backval==19:
+##                  lightimg=specialLightingImages[0]
+##               elif self.blocks[i][j].backval==20:
+##                  lightimg=specialLightingImages[1]
+##               elif self.blocks[i][j].backval==21:
+##                  lightimg=specialLightingImages[2]
+##               else:
+##                  lightimg=pygame.Surface((self.BLOCKSIZE,self.BLOCKSIZE))
+##               lightimg.set_alpha((1-self.blocks[i][j].light)*255)
+##               self.surface.blit(lightimg,(self.BLOCKSIZE*i,self.BLOCKSIZE*j))
    def updateLighting(self):
       for i in range(len(self.blocks)):
          for j in range(len(self.blocks[i])):
@@ -408,11 +427,12 @@ class Cam():
                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
                if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity<=0:
                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=0
-                  WorldItem("wood",["material","block"],random.randint(2,3),(chunkPos[0]*CHUNKSIZE*BLOCKSIZE+inChunkPos[0]*BLOCKSIZE+2/3*BLOCKSIZE,chunkPos[1]*CHUNKSIZE*BLOCKSIZE+inChunkPos[1]*BLOCKSIZE+2/3*BLOCKSIZE))
                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-                  pos=((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE-1)
+                  pos=((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE)
+                  mapData[pos[1]][pos[0]][1]=0
                   chunksVisited=[]
                   for i in range(20):
+                     pos=(pos[0],pos[1]-1)
                      if mapData[pos[1]][pos[0]][1]==20 or mapData[pos[1]][pos[0]][1]==21:
                         mapData[pos[1]][pos[0]][1]=0
                         bchunkPos=(pos[0]//CHUNKSIZE+1,pos[1]//CHUNKSIZE+1)
@@ -421,7 +441,6 @@ class Cam():
                         binChunkPos=(pos[0]-bchunkPos[0]*CHUNKSIZE,pos[1]-bchunkPos[1]*CHUNKSIZE)
                         CAM.Map.chunks[bchunkPos[1]][bchunkPos[0]].blocks[binChunkPos[0]][binChunkPos[1]].backval=0
                         WorldItem("wood",["material","block"],random.randint(2,3),((pos[0]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE,(pos[1]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE))
-                        pos=(pos[0],pos[1]-1)
                      else:
                         for i in range(len(chunksVisited)):
                            CAM.Map.chunks[chunksVisited[i][1]][chunksVisited[i][0]].updateSurface()
@@ -435,28 +454,47 @@ class Cam():
                   mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]=0
                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
       except:print("mouse off screen")
-   def placeBlock(self,name,screenPos):
+   def placeBlock(self,name,tags,screenPos):
       global mapData
       actualPos=(screenPos[0]+int(self.pos[0]),screenPos[1]+int(self.pos[1]))
       blockpos=(actualPos[0]//BLOCKSIZE,actualPos[1]//BLOCKSIZE)
-      if not Rect(p.pos[0]-CAM.pos[0]-BLOCKSIZE/2,p.pos[1]-CAM.pos[1]-BLOCKSIZE,BLOCKSIZE,BLOCKSIZE*2).colliderect(Rect(blockpos[0]*BLOCKSIZE-CAM.pos[0],blockpos[1]*BLOCKSIZE-CAM.pos[1],BLOCKSIZE,BLOCKSIZE)):
+      if "backwall" not in tags:
+         if not Rect(p.pos[0]-CAM.pos[0]-BLOCKSIZE/2,p.pos[1]-CAM.pos[1]-BLOCKSIZE,BLOCKSIZE,BLOCKSIZE*2).colliderect(Rect(blockpos[0]*BLOCKSIZE-CAM.pos[0],blockpos[1]*BLOCKSIZE-CAM.pos[1],BLOCKSIZE,BLOCKSIZE)):
+            val=getValFromName(name)
+            chunkPos=(actualPos[0]//(CHUNKSIZE*BLOCKSIZE),actualPos[1]//(CHUNKSIZE*BLOCKSIZE))
+            inChunkPos=((actualPos[0]-chunkPos[0]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE,(actualPos[1]-chunkPos[1]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE)
+            if mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]==0:
+               canPlace=False
+               if mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]!=0:canPlace=True
+               elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE-1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]!=0:canPlace=True
+               elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE+1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]!=0:canPlace=True
+               elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE-1][0]!=0:canPlace=True
+               elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE+1][0]!=0:canPlace=True
+               if canPlace:
+                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val=val
+                   integ=getIntegFromVal(val)
+                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity=integ
+                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].maxintegrity=integ
+                   CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+                   mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]=val
+                   return True
+      else:
          val=getValFromName(name)
          chunkPos=(actualPos[0]//(CHUNKSIZE*BLOCKSIZE),actualPos[1]//(CHUNKSIZE*BLOCKSIZE))
          inChunkPos=((actualPos[0]-chunkPos[0]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE,(actualPos[1]-chunkPos[1]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE)
-         if mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]==0:
+         if mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]==0:
             canPlace=False
-            if mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]!=0:canPlace=True
-            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE-1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]!=0:canPlace=True
-            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE+1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]!=0:canPlace=True
-            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE-1][0]!=0:canPlace=True
-            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE+1][0]!=0:canPlace=True
+            if mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE-1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]!=0:canPlace=True
+            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE+1][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]!=0:canPlace=True
+            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE-1][1]!=0:canPlace=True
+            elif mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE+1][1]!=0:canPlace=True
             if canPlace:
-                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val=val
+                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=val
                 integ=getIntegFromVal(val)
-                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity=integ
-                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].maxintegrity=integ
+                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity=integ
+                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].maxbackintegrity=integ
                 CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-                mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]=val
+                mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]=val
                 return True
       return False
       
@@ -485,6 +523,13 @@ class Player():
       self.inventory=[[None for i in range(4)]for i in range(10)]
       self.showInventory=False
       self.selectedItem=0
+      self.craftableItems=[]
+      self.itemList=[]
+      self.craftingMenuVel=0
+      self.craftingMenuPos=600
+      self.craftingSlotDelay=0
+      self.craftingTableInRange=False
+      self.furnaceInRange=False
    def drawHotbar(self):
       screen.blit(hotbarback,(10,10))
       for i in range(10):
@@ -494,8 +539,69 @@ class Player():
                 text=font.render(str(self.hotbar[i].amnt),True,(255,255,255))
                 screen.blit(text,(50+i*61-text.get_width()/2,40))
       pygame.draw.rect(screen,(255,255,0),Rect(10+self.selectedItem*61,10,60,60),5)
+   def updateCraftableItems(self):
+       self.itemList=[]
+       self.craftableItems=[]
+       for i in range(10):
+           if self.hotbar[i]!=None:
+               found=False
+               for k in range(len(self.itemList)):
+                   if self.hotbar[i].name==self.itemList[k].name:
+                       self.itemList[k].amnt+=self.hotbar[i].amnt
+                       found=True
+                       break
+               if not found:
+                   self.itemList.append(Item(self.hotbar[i].name,self.hotbar[i].tags,self.hotbar[i].amnt,self.hotbar[i].imgIndex))
+       for i in range(10):
+           for j in range(4):
+               if self.inventory[i][j]!=None:
+                   found=False
+                   for k in range(len(self.itemList)):
+                       if self.inventory[i][j].name==self.itemList[k].name:
+                           self.itemList[k].amnt+=self.inventory[i][j].amnt
+                           found=True
+                           break
+                   if not found:
+                       self.itemList.append(Item(self.inventory[i][j].name,self.inventory[i][j].tags,self.inventory[i][j].amnt,self.inventory[i][j].imgIndex))
+       for i in range(len(basicRecipies)):
+          partscomplete=0
+          for k in range(len(basicRecipies[i][4])):
+             for g in range(len(self.itemList)):
+                if basicRecipies[i][4][k][0] == self.itemList[g].name:
+                   if self.itemList[g].amnt>=basicRecipies[i][4][k][2]:
+                      partscomplete+=1
+             if partscomplete>=len(basicRecipies[i][4]):
+                self.craftableItems.append([Item(basicRecipies[i][0],basicRecipies[i][1],basicRecipies[i][2],basicRecipies[i][3]),basicRecipies[i][4]])
+       if self.craftingTableInRange:
+           for i in range(len(tableRecipies)):
+               partscomplete=0
+               for k in range(len(tableRecipies[i][4])):
+                  for g in range(len(self.itemList)):  
+                       if tableRecipies[i][4][k][0] == self.itemList[g].name:
+                           if self.itemList[g].amnt>=tableRecipies[i][4][k][2]:
+                               partscomplete+=1
+                  if partscomplete>=len(tableRecipies[i][4]):
+                     self.craftableItems.append([Item(tableRecipies[i][0],tableRecipies[i][1],tableRecipies[i][2],tableRecipies[i][3]),tableRecipies[i][4]])
+       if self.furnaceInRange:
+           for i in range(len(furnaceRecipies)):
+               partscomplete=0
+               for k in range(len(furnaceRecipies[i][4])):
+                  for g in range(len(self.itemList)):  
+                       if furnaceRecipies[i][4][k][0] == self.itemList[g].name:
+                           if self.itemList[g].amnt>=furnaceRecipies[i][4][k][2]:
+                               partscomplete+=1
+                  if partscomplete>=len(furnaceRecipies[i][4]):
+                     self.craftableItems.append([Item(furnaceRecipies[i][0],furnaceRecipies[i][1],furnaceRecipies[i][2],furnaceRecipies[i][3]),furnaceRecipies[i][4]])
+
+           
+   def drawCraftableItems(self):
+       screen.blit(craftingBack,(10,360))
+       for i in range(len(self.craftableItems)):
+           screen.blit(itemImages[self.craftableItems[i][0].imgIndex],(20,10+self.craftingMenuPos+i*60))
+       pygame.draw.rect(screen,(200,200,200),Rect(10,600,55,55),3)
    def drawInventory(self):
       screen.blit(inventoryback,(10,80))
+      m=pygame.mouse.get_pos()
       for i in range(10):
          for j in range(4):
             if self.inventory[i][j]!=None:
@@ -503,6 +609,17 @@ class Player():
                if "tool" not in self.inventory[i][j].tags:
                    text=font.render(str(self.inventory[i][j].amnt),True,(255,255,255))
                    screen.blit(text,(50+i*61-text.get_width()/2,110+j*61))
+      for i in range(10):
+          if self.hotbar[i]!=None:
+              if Rect(10+i*61,10,61,61).collidepoint(m):
+                  text=font.render(str(self.hotbar[i].name),True,(255,255,255))
+                  screen.blit(text,(m[0]-text.get_width()/2,m[1]-20))
+      for i in range(10):
+          for j in range(4):
+              if self.inventory[i][j]!=None:
+                  if Rect(10+i*61,70+j*61,61,61).collidepoint(m):
+                      text=font.render(str(self.inventory[i][j].name),True,(255,255,255))
+                      screen.blit(text,(m[0]-text.get_width()/2,m[1]-20))
       if pressed:
          drawHoldingItem()
    def updateInventory(self):
@@ -538,7 +655,7 @@ class Player():
                         if "tool" not in self.hotbar[i].tags:
                            self.hotbar[i].amnt+=itemHolding.amnt
                            if self.hotbar[i].amnt>999:
-                              self.addItem(self.hotbar[i].name,self.hotbar[i].tags,self.hotbar[i].amnt-999,self.hotbar[i].imgIndex)
+                              self.changeItem(self.hotbar[i].name,self.hotbar[i].tags,self.hotbar[i].amnt-999,self.hotbar[i].imgIndex)
                               self.hotbar[i].amnt=999
                      else:
                         putItemBack(self.hotbar[i])
@@ -556,7 +673,7 @@ class Player():
                               if "tool" not in self.inventory[i][j].tags:
                                  self.inventory[i][j].amnt+=itemHolding.amnt
                                  if self.inventory[i][j].amnt>999:
-                                    self.addItem(self.inventory[i][j].name,self.inventory[i][j].tags,self.inventory[i][j].amnt-999,self.inventory[i][j].imgIndex)
+                                    self.changeItem(self.inventory[i][j].name,self.inventory[i][j].tags,self.inventory[i][j].amnt-999,self.inventory[i][j].imgIndex)
                                     self.inventory[i][j].amnt=999
                            else:
                               putItemBack(self.inventory[i][j])
@@ -573,15 +690,20 @@ class Player():
             self.animationFrame=0
       else:
          self.animationTick-=1
-   def addItem(self,name,tags,amnt,imgIndex):#check hotbar and inventory for item, then use empty spaces
+   def changeItem(self,name,tags,amnt,imgIndex):#check hotbar and inventory for item, then use empty spaces
+      if amnt>0:
+          addRecentPickup(name,amnt)
       for i in range(10):
          if self.hotbar[i]!=None:
             if self.hotbar[i].name==name:
-               if p.hotbar[i].amnt<999:
-                  p.hotbar[i].amnt+=amnt
-                  if p.hotbar[i].amnt>999:
+               if self.hotbar[i].amnt<999:
+                  self.hotbar[i].amnt+=amnt
+                  if self.hotbar[i].amnt>999:
                      amnt=p.hotbar[i].amnt-999
-                     p.hotbar[i].amnt=999
+                     self.hotbar[i].amnt=999
+                  elif self.hotbar[i].amnt<=0:
+                      self.hotbar[i]=None
+                      return
                   else:
                      return
       for i in range(10):
@@ -593,6 +715,9 @@ class Player():
                      if self.inventory[i][j].amnt>999:
                         amnt=self.inventory[i][j].amnt-999
                         self.inventory[i][j].amnt=999
+                     elif self.inventory[i][j].amnt<=0:
+                         self.inventory[i][j]=None
+                         return
                      else:
                         return
       for i in range(10):
@@ -605,7 +730,33 @@ class Player():
                self.inventory[i][j]=Item(name,tags,amnt,imgIndex)
                return
    def update(self):
-      global stopRight, stopLeft
+      global stopRight, stopLeft, pressed, itemHolding
+      if self.showInventory:
+          if self.craftingSlotDelay<=0:
+              if self.craftingMenuPos%60<29.8:
+                  self.craftingMenuPos-=self.craftingMenuPos%60/2
+              elif self.craftingMenuPos%60>30.2:
+                  self.craftingMenuPos+=(60-self.craftingMenuPos%60)/2
+              if len(self.craftableItems)>0 and not pressed:
+                  if pygame.mouse.get_pressed()[0]:
+                      if Rect(10,600,55,55).collidepoint(pygame.mouse.get_pos()):
+                          pressed=True
+                          itemIndex=int(abs(self.craftingMenuPos-600)/60)
+                          item=self.craftableItems[itemIndex][0]
+                          itemHolding=Item(item.name,item.tags,item.amnt,item.imgIndex)
+                          for i in range(len(self.craftableItems[itemIndex][1])):
+                              item=self.craftableItems[itemIndex][1][i]
+                              p.changeItem(item[0],item[1],-item[2],item[3])
+                          p.updateCraftableItems()
+          else:
+              self.craftingSlotDelay-=1
+          self.craftingMenuVel*=0.9
+          self.craftingMenuPos+=self.craftingMenuVel
+          if self.craftingMenuPos>600:
+              self.craftingMenuPos=600
+          elif self.craftingMenuPos<655-len(self.craftableItems)*60:
+              self.craftingMenuPos=655-len(self.craftableItems)*60
+              
       if self.grounded:
          if self.groundedTick<0:
             self.groundedTick+=7
@@ -634,32 +785,50 @@ class Player():
       self.vel=(self.vel[0]*0.95,self.vel[1]*0.99+0.2)
       self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
       self.blockpos=(math.floor(self.pos[0]//BLOCKSIZE),math.floor(self.pos[1]//BLOCKSIZE))
+      self.craftingTableInRange=False
+      self.furnaceInRange=False
       for i in range(3):
          for j in range(3):
+            val=mapData[self.blockpos[1]+j-1-CHUNKSIZE][self.blockpos[0]+i-1-CHUNKSIZE][0]
+            if val==84:
+                self.craftingTableInRange=True
+            if val==61:
+               self.furnaceInRange=True
             try:
-               if mapData[self.blockpos[1]+j-1-CHUNKSIZE][self.blockpos[0]+i-1-CHUNKSIZE][0]>0:
+               if val not in uncollidableBlocks:
                   blockrect=Rect(BLOCKSIZE*(self.blockpos[0]+i-1),BLOCKSIZE*(self.blockpos[1]+j-1),BLOCKSIZE,BLOCKSIZE)
                   if blockrect.colliderect(self.rect):
                      deltaX = self.pos[0]-blockrect.centerx
                      deltaY = self.pos[1]-blockrect.centery
                      if abs(deltaX) > abs(deltaY):
                          if deltaX > 0:
-                             self.pos=(blockrect.right+BLOCKSIZE/2,self.pos[1])
-                             self.vel=(0,self.vel[1])
-                             stopLeft=True
+                            if val != 5:
+                                self.pos=(blockrect.right+BLOCKSIZE/2,self.pos[1])
+                                self.vel=(0,self.vel[1])
+                                stopLeft=True
                          else:
-                             self.pos=(blockrect.left-BLOCKSIZE/2,self.pos[1])
-                             self.vel=(0,self.vel[1])
-                             stopRight=True
+                            if val != 5:
+                               self.pos=(blockrect.left-BLOCKSIZE/2,self.pos[1])
+                               self.vel=(0,self.vel[1])
+                               stopRight=True
                      else:
                          if deltaY > 0:
-                             self.pos=(self.pos[0],blockrect.bottom+BLOCKSIZE)
-                             if self.vel[1]<0:
-                                self.vel=(self.vel[0],0)
+                            if val != 5:
+                               self.pos=(self.pos[0],blockrect.bottom+BLOCKSIZE)
+                               if self.vel[1]<0:
+                                  self.vel=(self.vel[0],0)
                          else:
-                            self.pos=(self.pos[0],blockrect.top-BLOCKSIZE)
-                            if self.vel[1]>0:
-                               self.vel=(self.vel[0]*0.5,0)
+                            if val == 5:#platform code
+                               if self.vel[1]>=0:
+                                  if self.rect.bottom<=blockrect.top+5:
+                                      if not movingDown:
+                                         self.pos=(self.pos[0],blockrect.top-BLOCKSIZE)
+                                         if self.vel[1]>0:
+                                            self.vel=(self.vel[0]*0.5,0)
+                            else:
+                               self.pos=(self.pos[0],blockrect.top-BLOCKSIZE)
+                               if self.vel[1]>0:
+                                  self.vel=(self.vel[0]*0.5,0)
                             self.grounded=True
             except:print("player out of map")
       self.rect.left=self.pos[0]-BLOCKSIZE/2
@@ -669,10 +838,15 @@ class Player():
 def distance(p1,p2):
    return math.sqrt((p2[0]-p1[0])**2+(p2[1]-p1[1])**2)
 def putItemBack(item):
-   if itemPos[0]=="i":
-      p.inventory[itemPos[1][0]][itemPos[1][1]]=item
-   else:
-      p.hotbar[itemPos[1]]=item
+    global itemPos
+    if itemPos!=None:
+       if itemPos[0]=="i":
+          p.inventory[itemPos[1][0]][itemPos[1][1]]=item
+       else:
+          p.hotbar[itemPos[1]]=item
+    else:
+        p.changeItem(item.name,item.tags,item.amnt,item.imgIndex)
+    itemPos=None
 def tree(pos):
    global mapData
    for i in range(1000):
@@ -701,6 +875,7 @@ def getItemImgIndex(name):
    if name=="wood":return 4
    if name=="dirt":return 2
    if name=="stone":return 16
+   if name=="copper":return 226
    if name=="iron":return 210
    if name=="coal":return 194
    if name=="silver":return 178
@@ -709,20 +884,34 @@ def getItemImgIndex(name):
    if name=="copperAxe":return 107
    if name=="copperHammer":return 108
    if name=="cobble":return 16
+   if name=="crafting table":return 84
+   if name=="wood platform":return 5
+   if name=="wood backwall":return 20
+   if name=="cobble backwall":return 17
+   if name=="cobble furnace":return 61
 def getInfoFromVal(val):
    if val==1:return ["cobble",["material","block"]]
    if val==4:return ["wood",["material","block"]]
    if val==2 or val==3:return ["dirt",["material","block"]]
+   if val==5:return ["wood platform",["block"]]
    if val==32:return ["gold",["ore"]]
    if val==33:return ["iron",["ore"]]
-   if val==34:return ["coal",["material"]]
+   if val==34:return ["coal",["ore","material"]]
    if val==16:return ["cobble",["block"]]
    if val==35:return ["silver",["ore"]]
+   if val==51:return ["copper",["ore"]]
+   if val==84:return ["crafting table",["block"]]
+   if val==61:return ["cobble furnace",["block"]]
 def getValFromName(name):
    if name=="stone":return 1
    if name=="dirt":return 2
    if name=="cobble":return 16
    if name=="wood":return 4
+   if name=="crafting table":return 84
+   if name=="wood platform":return 5
+   if name=="wood backwall":return 4
+   if name=="cobble backwall":return 16
+   if name=="cobble furnace":return 61
 def getIntegFromVal(val):
    if val==1:return 100
    if val==2 or val==3:return 75
@@ -730,13 +919,70 @@ def getIntegFromVal(val):
    if val==33:return 175
    if val==34:return 150
    if val==35:return 150
+   if val==51:return 120
    if val==16:return 100
    if val==19:return 500
    if val==20:return 500
    if val==4:return 150
+   if val==84:return 200
+   if val==5:return 80
+   if val==61:return 200
+def updateRecentPickups():
+   global recentPickups
+   for pickup in recentPickups:
+      pickup[2]-=1
+      if pickup[2]<0:
+         recentPickups.remove(pickup)
+   recentPickups=sorted(recentPickups,key= lambda x:x[2],reverse=True)
+def drawRecentPickups():
+   for i in range(len(recentPickups)):
+      if recentPickups[i][2]>90:
+         font=pygame.font.SysFont("Fixedsys",int((100-recentPickups[i][2])*2.8))
+      else:
+         font=pygame.font.SysFont("Fixedsys",28)
+      if recentPickups[i][1]>1:
+         text=font.render(recentPickups[i][0]+" ("+str(recentPickups[i][1])+")",False,(255,255,255))
+      else:
+         text=font.render(recentPickups[i][0],False,(255,255,255))
+      if recentPickups[i][2]<=25:
+         text.set_alpha(recentPickups[i][2]/25*255)
+      screen.blit(text,(recentPickups[i][3][0]-CAM.pos[0]-text.get_width()/2,recentPickups[i][3][1]-CAM.pos[1]-75-i*30))
+def addRecentPickup(name,amnt):
+   global recentPickups
+   for i in range(len(recentPickups)):
+      if recentPickups[i][0]==name:
+         recentPickups[i][1]+=amnt
+         recentPickups[i][2]=100
+         recentPickups[i][3]=p.pos
+         return
+   recentPickups.append([name,amnt,100,p.pos])
+   
+transparentBlocks=[84,5]
+uncollidableBlocks=[0,84,61]
 
 font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
 clock=pygame.time.Clock()
+
+basicRecipies=[#[out item name,out item tags,out item quantity,out item imgIndex,[in items, in item quianties]]
+   ["wood",["block","material"],1,4,[["wood backwall",["block","backwall"],4,4]]],
+   ["cobble",["block","material"],1,16,[["cobble backwall",["block","backwall"],4,18]]],
+   ["wood platform",["block"],2,5,[["wood",["block","material"],1,4]]],
+   ["crafting table",["block"],1,84,[["wood",["block","material"],10,4]]],
+   ]
+tableRecipies=[
+   ["wood backwall",["block","backwall"],4,20,[["wood",["block","material"],1,4]]],
+   ["cobble backwall",["block","backwall"],4,17,[["cobble",["block","material"],1,16]]],
+   ["cobble furnace",["block","furnace"],1,61,[["coal",["ore","material"],4,196],["cobble",["block","material"],10,16]]],
+   #["wooden chest",["block","chest"],1,16,[["wood",["block","material"],20,4],["iron bar",1]]],
+   ]
+furnaceRecipies=[
+   ["iron bar",["material"],1,211,[["iron",["ore"],3,210]]],
+   ["copper bar",["material"],1,227,[["copper",["ore"],3,226]]],
+   ["silver bar",["material"],1,179,[["silver",["ore"],3,178]]],
+   ["gold bar",["material"],1,163,[["gold",["ore"],3,162]]],
+   ]
+
+
 worldSize="tiny"
 
 worldSizes={
@@ -762,15 +1008,17 @@ RIGHTBOARDER=CHUNKSIZE*BLOCKSIZE*CHUNKNUMX-BLOCKSIZE/2
 globalLighting=1
 
 worldItems=[]
+recentPickups=[]#name,amnt,life
 
 stopRight=False
 stopLeft=False
 movingRight=False
 movingLeft=False
-
+movingDown=False
+movingDownTimer=0
 pressed=False
 itemHolding=None
-itemPos=[]
+itemPos=None
 
 print("Loading images...")
 
@@ -780,8 +1028,10 @@ loadCharacterAnimation()
 loadHotbarImages()
 assembleHotbarBack()
 assembleInventoryBack()
+assembleCraftingBack()
 loadItemImages()
 loadLightingImages()
+
 
 print("Initailizing Objects...")
 spawnPoint=(BLOCKSIZE*CHUNKNUMX*CHUNKSIZE/2,BLOCKSIZE*395)
@@ -796,11 +1046,17 @@ print("Giving tools...")
 p.hotbar[0]=Item("copperPickaxe",["pickaxe","tool"],1,106)
 p.hotbar[1]=Item("copperAxe",["axe","tool"],1,107)
 p.hotbar[2]=Item("copperHammer",["hammer","tool"],1,108)
-
+p.hotbar[2]=Item("copperSword",["weapon","tool"],1,109)
 
 print("Done! (In",pygame.time.get_ticks()/1000,"seconds!)")
 while 1:
    gameTick=pygame.time.get_ticks()
+   if movingDown:
+      if movingDownTimer>0:
+         movingDownTimer-=1
+         if movingDownTimer<=0:
+            movingDown=False
+      movingDownTimer
    CAM.pos=(CAM.pos[0]+(p.pos[0]-screenW/2-CAM.pos[0])*0.05,CAM.pos[1]+(p.pos[1]-screenH/2-CAM.pos[1])*0.05)
    rel=pygame.mouse.get_rel()
    m=pygame.mouse.get_pos()
@@ -820,25 +1076,30 @@ while 1:
              tags=p.hotbar[p.selectedItem].tags
              CAM.damageBlock(5,m,tags)
              if "block" in tags:
-                if CAM.placeBlock(p.hotbar[p.selectedItem].name,m):
+                if CAM.placeBlock(p.hotbar[p.selectedItem].name,p.hotbar[p.selectedItem].tags,m):
                    p.hotbar[p.selectedItem].amnt-=1
                    if p.hotbar[p.selectedItem].amnt<=0:
                       p.hotbar[p.selectedItem]=None
+   if pygame.mouse.get_pressed()[1]:
+      CAM.placeBlock("wood backwall",["block","backwall"],m)
    CAM.update()
    p.update()
    updateWorldItems()
+   updateRecentPickups()
    screen.fill((135*globalLighting,206*globalLighting,235*globalLighting))
    #screen.blit(overworldbkg,(0,0))
    CAM.render()
+   drawRecentPickups()
    p.draw()
    drawWorldItems()
    p.drawHotbar()
    if p.showInventory:
-      p.drawInventory()
       p.updateInventory()
+      p.drawCraftableItems()
+      p.drawInventory()
    fps=clock.get_fps()
    text=font.render(str(int(fps))+"fps  "+str(int(p.pos[0]//BLOCKSIZE))+"x "+str(int(p.pos[1]//BLOCKSIZE))+"y",True,(255,255,255))
-   screen.blit(text,(1000,10))
+   screen.blit(text,(screenW-200,10))
    #globalLighting=math.sin(gameTick/1000)/2.5+0.5
    for event in pygame.event.get():
        if event.type==QUIT:
@@ -850,15 +1111,27 @@ while 1:
                 p.showInventory=False
              else:
                 p.showInventory=True
+                p.updateCraftableItems()
           if event.key==K_a:
              movingLeft=True
              stopLeft=False
           if event.key==K_d:
              movingRight=True
              stopRight=False
-          if event.key==K_f:
+          if event.key==K_s:
+             movingDown=True
+          if event.key==K_u:
              for i in range(19):
-                WorldItem("cobble",["material","block"],5,(p.pos[0],p.pos[1]-200))
+                WorldItem("wood backwall",["block","backwall"],5,(p.pos[0],p.pos[1]-200))
+          if event.key==K_i:
+             for i in range(19):
+                WorldItem("wood platform",["material","block"],5,(p.pos[0],p.pos[1]-200))
+          if event.key==K_o:
+             for i in range(19):
+                WorldItem("crafting table",["material","block"],5,(p.pos[0],p.pos[1]-200))
+          if event.key==K_p:
+             for i in range(19):
+                WorldItem("cobble backwall",["block","backwall"],5,(p.pos[0],p.pos[1]-200))
           if event.key==K_h:
              p.pos=spawnPoint
           if event.key==K_w or event.key==K_SPACE:
@@ -879,17 +1152,27 @@ while 1:
              movingLeft=False
           if event.key==K_d:
              movingRight=False
+          if event.key==K_s:
+             movingDownTimer=10
        if event.type==MOUSEBUTTONDOWN:
           if event.button==4:
-             if p.selectedItem>0:
-                p.selectedItem-=1
+             if p.showInventory:
+                 p.craftingMenuVel+=5
+                 p.craftingSlotDelay=15
              else:
-                p.selectedItem=9
+                 if p.selectedItem>0:
+                    p.selectedItem-=1
+                 else:
+                    p.selectedItem=9
           if event.button==5: 
-             if p.selectedItem<9:
-                p.selectedItem+=1
+             if p.showInventory:
+                 p.craftingMenuVel-=5
+                 p.craftingSlotDelay=15
              else:
-                p.selectedItem=0
+                 if p.selectedItem<9:
+                    p.selectedItem+=1
+                 else:
+                    p.selectedItem=0
    clock.tick(60)
    #pygame.display.update()
    pygame.display.flip()

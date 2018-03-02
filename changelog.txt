@@ -1,8 +1,23 @@
+02/03/2018-v0.0.2-------------------------------------------------------
+-added crafting
+-added item gold bar
+-added item silver bar
+-added item copper bar
+-added item copper
+-added block copper ore
+-added item wood platform
+-added cobble furnace
+-added crafting table
+-added cobble backwall
+-added wood backwall
+-added pop up text when items are picked up
+-added inventory hover text
+-removed Brinefreak
 01/03/2018-v0.0.1-------------------------------------------------------
 -code cleaned up
--added world sizes
--added block silver ore
--added item silver
+-world sizes added
+-added silver ore
+-added silver block
 -added inventory
 28/02/2018-v0.0.1-------------------------------------------------------
 -added item copperAxe

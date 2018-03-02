@@ -1,16 +1,13 @@
 ###TODO###
 ---------IMPORTANT----------
--add crafting
 -code health
--add back block placement
 -----------LESSER-----------
 -code enemy zombie
--add block copper ore
--add item copper
 -code saving
 -add armour
 -add sword
 -add music
 -add sfx
+-add hud/map
 ------------BUGS------------
--tree stump returns after removed when chunk is re-entered
+-sometimes the player can stick to a wall
