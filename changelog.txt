@@ -12,6 +12,7 @@
 -added wood backwall
 -added pop up text when items are picked up
 -added inventory hover text
+-added chests
 -removed Brinefreak
 01/03/2018-v0.0.1-------------------------------------------------------
 -code cleaned up
