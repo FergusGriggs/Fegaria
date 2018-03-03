@@ -341,8 +341,8 @@ class Chunk():
          for j in range(self.CHUNKSIZE):
             dat=mapData[dataj*self.CHUNKSIZE+j][datai*self.CHUNKSIZE+i]
             self.blocks[i].append(Block(dat[0],dat[1]))
-      self.sources=[(random.randint(0,CHUNKSIZE-1),random.randint(0,CHUNKSIZE-1)) for i in range(5)]
-      self.updateLight()
+      #self.sources=[(random.randint(0,CHUNKSIZE-1),random.randint(0,CHUNKSIZE-1)) for i in range(5)]
+      #self.updateLight()
    def draw(self,offset):
       if self.loaded:
          screen.blit(self.surface,(self.POS[0]-offset[0],self.POS[1]-offset[1]))
