@@ -427,7 +427,7 @@ class Block():
          integ=getIntegFromVal(backval)
          self.backintegrity=integ
          self.maxbackintegrity=integ
-      self.light=0
+      self.light=1
 class Cam():
    def __init__(self,Map,pos):
       self.pos=pos
