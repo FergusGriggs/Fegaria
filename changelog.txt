@@ -13,7 +13,11 @@
 -added item gold sword
 -improved crafting
 -added chestRooms
--added acorn
+-added item acorn
+-added item lesser healing potion
+-added item greater healing potion
+-added throwable item shuriken
+-added throwable item throwing knife
 -improved chest loot system
 -removed Brinefreak
 02/03/2018-v0.0.2-------------------------------------------------------
