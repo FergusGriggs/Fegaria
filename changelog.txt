@@ -20,6 +20,7 @@
 -added throwable item throwing knife
 -added gold chest
 -improved chest loot system
+-added NPC bird
 -removed Brinefreak
 02/03/2018-v0.0.2-------------------------------------------------------
 -added crafting

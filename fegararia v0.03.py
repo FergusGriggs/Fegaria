@@ -10,7 +10,7 @@ screen=pygame.display.set_mode((screenW,screenH))#,FULLSCREEN)
 pygame.display.set_caption('fegararia'+" v"+str(VERSION))
 
 overworldbkg=pygame.transform.scale(pygame.image.load("Textures/overworldbkg.png"),(screenW,screenH))
-
+playerscale=1
 #when saving the following need to be saved:
 #Player class
 #mapData array
@@ -26,6 +26,17 @@ def loadLightingImages():
          surf.set_colorkey((255,0,255))
          surf.blit(specialLightingTilesheet,(-i*BLOCKSIZE,-j*BLOCKSIZE))
          specialLightingImages.append(surf)
+def loadBirdImages():
+   birdTilesheet=pygame.transform.scale(pygame.image.load("Textures/birds.png"),(80,40))
+   birdTilesheet.set_colorkey((255,0,255))
+   global birdImages
+   birdImages=[]
+   for j in range(2):
+      for i in range(4):
+         surf=pygame.Surface((20,20))
+         surf.set_colorkey((255,0,255))
+         surf.blit(birdTilesheet,(-i*20,-j*20))
+         birdImages.append(surf)
 def loadItemImages():
    global itemImages  
    itemTilesheet=pygame.transform.scale(pygame.image.load("Textures/itemTilesheet.png"),(int(BLOCKSIZE/1.5*16),int(BLOCKSIZE/1.5*16)))
@@ -77,14 +88,14 @@ def assembleCraftingBack():
     inventoryback.set_alpha(200)
 def loadCharacterAnimation():
    global characterFrames
-   characterimages=pygame.transform.scale(pygame.image.load("Textures/player tilesheet.png"),(BLOCKSIZE*4,BLOCKSIZE*4))
+   characterimages=pygame.transform.scale(pygame.image.load("Textures/player tilesheet.png"),(int(BLOCKSIZE*4*playerscale),int(BLOCKSIZE*4*playerscale)))
    characterimages.set_colorkey((255,0,255))
    characterFrames=[]
    for i in range(2):
       for j in range(4):
-         surf=pygame.Surface((BLOCKSIZE,BLOCKSIZE*2))
+         surf=pygame.Surface((BLOCKSIZE*playerscale,BLOCKSIZE*2*playerscale))
          surf.set_colorkey((255,0,255))
-         surf.blit(characterimages,(-j*BLOCKSIZE,-i*BLOCKSIZE*2))
+         surf.blit(characterimages,(-j*BLOCKSIZE*playerscale,-i*BLOCKSIZE*2*playerscale))
          characterFrames.append(surf)
 def loadTileImages():
    global images
@@ -110,6 +121,87 @@ class Enemy():
       self.pos=pos
       self.vel=(0,0)
       self.type=enemyType
+class NPC():
+   def __init__(self,pos,NPCtype,vel=(0,0)):
+      self.pos=pos
+      self.vel=vel
+      self.type=NPCtype
+   def getCollide(self,handle=True):
+      collides=[False,False,False,False]
+      blockpos=(math.floor(self.rect.centerx//BLOCKSIZE),math.floor(self.rect.centery//BLOCKSIZE))
+      for i in range(3):
+         for j in range(3):
+            if mapData[blockpos[1]+j-1-CHUNKSIZE][blockpos[0]+i-1-CHUNKSIZE][0]>0:
+               blockrect=Rect(BLOCKSIZE*(blockpos[0]+i-1),BLOCKSIZE*(blockpos[1]+j-1),BLOCKSIZE,BLOCKSIZE)
+               if blockrect.colliderect(self.rect):
+                  deltaX = self.rect.centerx-blockrect.centerx
+                  deltaY = self.rect.centery-blockrect.centery
+                  if abs(deltaX) > abs(deltaY):
+                      if deltaX > 0:
+                         collides[2]=True
+                         if handle:
+                            self.pos=(blockrect.right+self.rect.width/2,self.pos[1])
+                            self.vel=(0,self.vel[1])
+                      else:
+                         collides[0]=True
+                         if handle:
+                            self.pos=(blockrect.left-self.rect.width/2,self.pos[1])
+                            self.vel=(0,self.vel[1])
+                  else:
+                      if deltaY > 0:
+                         collides[3]=True
+                         if handle:
+                            self.pos=(self.pos[0],blockrect.bottom+self.rect.height/2)
+                            if self.vel[1]<0:
+                               self.vel=(self.vel[0],0)
+                      else:
+                         collides[1]=True
+                         if handle:
+                            self.pos=(self.pos[0],blockrect.top-self.rect.height/2)
+                            if self.vel[1]>0:
+                               self.vel=(self.vel[0]*0.5,0)
+      return collides
+class bird(NPC):
+   def __init__(self,pos,vel):
+      global birdNum
+      self.rect=Rect(pos[0]-10,pos[1]-10,20,20)
+      super().__init__(pos,"bird",vel)
+      self.animationFrame=0
+      if self.vel[0]>0:
+         self.direction=1
+      else:
+         self.direction=0
+      self.animationTick=0
+      self.col=random.randint(0,1)
+      NPCS.append(self)
+      birdNum+=1
+   def update(self):
+      global birdNum
+      if self.animationTick<=0:
+         self.animationFrame=1
+      else:
+         self.animationFrame=0
+         self.animationTick-=1
+      if abs(p.pos[0]-self.pos[0])>screenW:
+         birdNum-=1
+         NPCS.remove(self)
+      collides=self.getCollide()
+      if collides[0]:
+         self.vel=(-2,self.vel[1])
+         self.direction=0
+      elif collides[1]:
+         self.vel=(self.vel[0],-2)
+      elif collides[2]:
+         self.vel=(2,self.vel[1])
+         self.direction=1
+      if self.vel[1]>1:
+         self.vel=(self.vel[0],-1)
+         self.animationTick=20
+      self.vel=(self.vel[0],self.vel[1]+0.05)
+      self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
+      self.rect=Rect(self.pos[0]-10,self.pos[1]-10,20,20)
+   def draw(self):
+      screen.blit(birdImages[self.animationFrame+self.direction*2+self.col*4],(self.pos[0]-CAM.pos[0],self.pos[1]-CAM.pos[1]))
 class WorldItem():
    def __init__(self,name,tags,amnt,pos):
       global worldItems
@@ -578,7 +670,7 @@ class Player():
       self.maxhp=maxhp
       self.hp=maxhp
       self.movespeed=movespeed
-      self.rect=Rect(pos[0]-BLOCKSIZE/2,pos[1]-BLOCKSIZE,BLOCKSIZE,BLOCKSIZE*2)
+      self.rect=Rect(pos[0]-(BLOCKSIZE/2)*playerscale,pos[1]-BLOCKSIZE*playerscale,BLOCKSIZE*playerscale,BLOCKSIZE*2*playerscale)
       self.animationFrame=0
       self.direction=0
       self.animationTick=0
@@ -956,18 +1048,18 @@ class Player():
                      if abs(deltaX) > abs(deltaY):
                          if deltaX > 0:
                             if val != 5:
-                                self.pos=(blockrect.right+BLOCKSIZE/2,self.pos[1])
+                                self.pos=(blockrect.right+(BLOCKSIZE/2)*playerscale,self.pos[1])
                                 self.vel=(0,self.vel[1])
                                 stopLeft=True
                          else:
                             if val != 5:
-                               self.pos=(blockrect.left-BLOCKSIZE/2,self.pos[1])
+                               self.pos=(blockrect.left-(BLOCKSIZE/2)*playerscale,self.pos[1])
                                self.vel=(0,self.vel[1])
                                stopRight=True
                      else:
                          if deltaY > 0:
                             if val != 5:
-                               self.pos=(self.pos[0],blockrect.bottom+BLOCKSIZE)
+                               self.pos=(self.pos[0],blockrect.bottom+BLOCKSIZE*playerscale)
                                if self.vel[1]<0:
                                   self.vel=(self.vel[0],0)
                          else:
@@ -975,18 +1067,18 @@ class Player():
                                if self.vel[1]>=0:
                                   if self.rect.bottom<=blockrect.top+5:
                                       if not movingDown:
-                                         self.pos=(self.pos[0],blockrect.top-BLOCKSIZE)
+                                         self.pos=(self.pos[0],blockrect.top-BLOCKSIZE*playerscale)
                                          if self.vel[1]>0:
                                             self.vel=(self.vel[0]*0.5,0)
                                          self.grounded=True
                             else:
-                               self.pos=(self.pos[0],blockrect.top-BLOCKSIZE)
+                               self.pos=(self.pos[0],blockrect.top-BLOCKSIZE*playerscale)
                                if self.vel[1]>0:
                                   self.vel=(self.vel[0]*0.5,0)
                                self.grounded=True
             except:print("player out of map")
-      self.rect.left=self.pos[0]-BLOCKSIZE/2
-      self.rect.top=self.pos[1]-BLOCKSIZE
+      self.rect.left=self.pos[0]-BLOCKSIZE/2*playerscale
+      self.rect.top=self.pos[1]-BLOCKSIZE*playerscale
    def openChest(self,pos,items):
       self.chestOpen=True
       self.chestItems=items
@@ -1012,8 +1104,9 @@ def tree(pos):
    global mapData
    planted=False
    for i in range(1000):
-      pos=(pos[0],pos[1]+1)
       try:
+         if mapData[pos[1]-1][pos[0]][1]==20:
+            return False
          if mapData[pos[1]+1][pos[0]][0]==3:
             planted=True
             if mapData[pos[1]][pos[0]][1]!=19:
@@ -1026,6 +1119,7 @@ def tree(pos):
                      break
                break
       except:None
+      pos=(pos[0],pos[1]+1)
    if planted:
       return True
    else:
@@ -1188,10 +1282,20 @@ def addRecentPickup(name,amnt,colour=(255,255,255)):
          recentPickups[i][4]=colour
          return
    recentPickups.append([name.title(),amnt,100,p.pos,colour])
-   
+def updateNPCS():
+   global NPCS
+   for NPC in NPCS:
+      NPC.update()
+def drawNPCS():
+   for NPC in NPCS:
+      NPC.draw()
 transparentBlocks=[84,5,85,86]
 uncollidableBlocks=[0,84,61,85,86]
 chestBlocks=[85,86]
+
+NPCS=[]
+
+birdNum=0
 
 font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
 clock=pygame.time.Clock()
@@ -1316,6 +1420,7 @@ assembleCraftingBack()
 assembleChestBack()
 loadItemImages()
 loadLightingImages()
+loadBirdImages()
 
 
 print("Initailizing Objects...")
@@ -1334,7 +1439,14 @@ p.hotbar[2]=Item("copper hammer",["hammer","tool"],1,108)
 p.hotbar[3]=Item("copper sword",["weapon","tool"],1,109)
 
 print("Done! (In",pygame.time.get_ticks()/1000,"seconds!)")
+
 while 1:
+   if p.pos[1]/BLOCKSIZE<430:
+      if birdNum<2 and random.randint(0,100)==100:
+         if random.randint(0,1)==1:
+            bird((CAM.pos[0]-20,random.randint(int(CAM.pos[1]),int(CAM.pos[1]+4*BLOCKSIZE))),(1,0))
+         else:
+            bird((CAM.pos[0]+screenW,random.randint(int(CAM.pos[1]),int(CAM.pos[1]+4*BLOCKSIZE))),(-1,0))
    gameTick=pygame.time.get_ticks()
    if movingDown:
       if movingDownTimer>0:
@@ -1392,8 +1504,11 @@ while 1:
          CAM.altclickBlock(m,tags)
    else:
       altpressed=False
+   if pygame.mouse.get_pressed()[1]:
+      bird((m[0]+CAM.pos[0],m[1]+CAM.pos[1]),(1,0))
    CAM.update()
    p.update()
+   updateNPCS()
    updateWorldItems()
    updateRecentPickups()
    screen.fill((135*globalLighting,206*globalLighting,235*globalLighting))
@@ -1402,6 +1517,7 @@ while 1:
    drawRecentPickups()
    p.draw()
    drawWorldItems()
+   drawNPCS()
    p.drawHotbar()
    if p.showInventory:
       p.updateInventory()
