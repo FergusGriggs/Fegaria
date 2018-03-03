@@ -1,3 +1,20 @@
+03/03/2018-v0.0.3-------------------------------------------------------
+-added item iron pickaxe
+-added item iron axe
+-added item iron hammer
+-added item iron sword
+-added item silver pickaxe
+-added item silver axe
+-added item silver hammer
+-added item silver sword
+-added item gold pickaxe
+-added item gold axe
+-added item gold hammer
+-added item gold sword
+-improved crafting
+-added chestRooms
+-added acorn
+-removed Brinefreak
 02/03/2018-v0.0.2-------------------------------------------------------
 -added crafting
 -added item gold bar
@@ -36,7 +53,7 @@
 -added block cobble
 -added block dirt
 -added block stone
--added sand
+-added block sand
 -added perlin noise world gen
 -added block trees
 -added item coal
