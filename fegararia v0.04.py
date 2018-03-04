@@ -1255,6 +1255,7 @@ def getIntegFromVal(val):
    if val==5:return 80
    if val==61:return 200
    if val==85:return 200
+   if val==86:return 200
    if val==48:return 2000
 def updateRecentPickups():
    global recentPickups
@@ -1578,6 +1579,8 @@ while 1:
                 WorldItem("copper",["ore"],random.randint(10,20),(p.pos[0],p.pos[1]-200))
           if event.key==K_f:
              WorldItem("cobble furnace",["block","furnace"],1,(p.pos[0],p.pos[1]-200))
+          if event.key==K_k:
+             WorldItem("gold chest",["block","chest"],1,(p.pos[0],p.pos[1]-200))
           if event.key==K_m:
              WorldItem("gold coin",["coin"],1,(p.pos[0],p.pos[1]-200))
           if event.key==K_p:
