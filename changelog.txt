@@ -4,6 +4,7 @@
 -adjusted chest room spawn rate
 -updated most item textures
 -added functionality for throwing knife and shuriken
+-added player hp
 -added Brinefreak
 -removed Brinefreak
 03/03/2018-v0.0.3-------------------------------------------------------
