@@ -15,7 +15,15 @@ playerscale=1
 #Player class
 #mapData array
 #chest Data array
-
+def loadMiscIcons():
+    global miscIcons
+    miscIconTilesheet=pygame.transform.scale(pygame.image.load("Textures/misc.png"),(50,100))
+    miscIcons=[]
+    for j in range(1):
+      for i in range(2):
+         surf=pygame.Surface((50,50))
+         surf.blit(miscIconTilesheet,(-i*50,-j*50))
+         miscIcons.append(surf)
 def loadLightingImages():
    specialLightingTilesheet=pygame.transform.scale(pygame.image.load("Textures/special lighting tilesheet.png"),(BLOCKSIZE*16,BLOCKSIZE*16))
    global specialLightingImages
@@ -265,7 +273,61 @@ class Item():
       self.tags=tags
       self.amnt=amnt
       self.imgIndex=imgIndex
-      
+class Projectile():
+    def __init__(self,pos,vel,stats,rectsize,imgIndex):#pos = tuple, vel=tuple, stats=dict
+        self.pos=pos
+        self.vel=vel
+        self.imgIndex=imgIndex
+        self.stats=stats
+        self.rect=Rect(self.pos[0]-rectsize/2,self.pos[1]-rectsize/2,rectsize,rectsize)
+        projectiles.append(self)
+    def update(self):
+        self.vel=(self.vel[0]*0.99,self.vel[1]*0.99+0.2)
+        self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
+        self.rect.left=self.pos[0]-self.rect.width/2
+        self.rect.top=self.pos[1]-self.rect.height/2
+        blockpos=(math.floor(self.rect.centerx//BLOCKSIZE),math.floor(self.rect.centery//BLOCKSIZE))
+        destroy=False
+        for i in range(3):
+            for j in range(3):
+                val=mapData[blockpos[1]+j-1-CHUNKSIZE][blockpos[0]+i-1-CHUNKSIZE][0]
+                if val not in uncollidableBlocks:
+                   blockrect=Rect(BLOCKSIZE*(blockpos[0]+i-1),BLOCKSIZE*(blockpos[1]+j-1),BLOCKSIZE,BLOCKSIZE)
+                   if blockrect.colliderect(self.rect):
+                      deltaX = self.rect.centerx-blockrect.centerx
+                      deltaY = self.rect.centery-blockrect.centery
+                      if abs(deltaX) > abs(deltaY):
+                          if deltaX > 0:
+                              if self.stats["bounce"]==True:
+                                  self.pos=(blockrect.right+self.rect.width/2,self.pos[1])
+                                  self.vel=(0,self.vel[1])
+                              else:
+                                  destroy=True
+                          else:
+                              if self.stats["bounce"]==True:
+                                  self.pos=(blockrect.left-self.rect.width/2,self.pos[1])
+                                  self.vel=(0,self.vel[1])
+                              else:
+                                  destroy=True
+                      else:
+                          if deltaY > 0:
+                              if self.stats["bounce"]==True:
+                                  self.pos=(self.pos[0],blockrect.bottom+self.rect.height/2)
+                                  if self.vel[1]<0:
+                                     self.vel=(self.vel[0],0)
+                              else:
+                                  destroy=True
+                          else:
+                             if self.stats["bounce"]==True:
+                                 self.pos=(self.pos[0],blockrect.top-self.rect.height/2)
+                                 if self.vel[1]>0:
+                                     self.vel=(self.vel[0]*0.5,0)
+                             else:
+                                 destroy=True
+        if destroy:
+            projectiles.remove(self)
+    def draw(self):
+        screen.blit(itemImages[self.imgIndex],(self.pos[0]-self.rect.width/2-CAM.pos[0],self.pos[1]-self.rect.height/2-CAM.pos[1]))
 class Map():
    def __init__(self,xchunks,ychunks,CHUNKSIZE,BLOCKSIZE):
       self.CHUNKSIZE=CHUNKSIZE
@@ -670,6 +732,8 @@ class Player():
       self.vel=(0,0)
       self.maxhp=maxhp
       self.hp=maxhp
+      self.hpsurf=pygame.Surface((428,50))
+      self.hpsurf.set_colorkey((255,0,255))
       self.movespeed=movespeed
       self.rect=Rect(pos[0]-(BLOCKSIZE/2)*playerscale,pos[1]-BLOCKSIZE*playerscale,BLOCKSIZE*playerscale,BLOCKSIZE*2*playerscale)
       self.animationFrame=0
@@ -1085,6 +1149,15 @@ class Player():
       self.chestItems=items
       self.showInventory=True
       self.updateCraftableItems()
+   def drawHP(self):
+      heartNum=math.ceil(self.hp/10)
+      for i in range(heartNum):
+          surf=pygame.Surface((50,50))
+          surf.set_colorkey((255,0,255))
+          surf.blit(miscIcons[0],(0,0))
+          if i==heartNum-1:
+              surf.set_alpha(25.5*(self.hp%10))
+          screen.blit(surf,(screenW-60-i*42,15))
    def draw(self):
       screen.blit(characterFrames[self.animationFrame+self.direction*4],(int(self.rect.left-CAM.pos[0]),int(self.rect.top-CAM.pos[1])))
 def distance(p1,p2):
@@ -1294,11 +1367,19 @@ def updateNPCS():
 def drawNPCS():
    for NPC in NPCS:
       NPC.draw()
+def updateProjectiles():
+   global projectiles
+   for projectile in projectiles:
+      projectile.update()
+def drawProjectiles():
+   for projectile in projectiles:
+      projectile.draw()
 transparentBlocks=[84,5,85,86]
 uncollidableBlocks=[0,84,61,85,86]
 chestBlocks=[85,86]
 
 NPCS=[]
+projectiles=[]
 
 birdNum=0
 
@@ -1427,6 +1508,7 @@ assembleChestBack()
 loadItemImages()
 loadLightingImages()
 loadBirdImages()
+loadMiscIcons()
 
 
 print("Initailizing Objects...")
@@ -1445,14 +1527,7 @@ p.hotbar[2]=Item("copper hammer",["hammer","tool"],1,108)
 p.hotbar[3]=Item("copper sword",["weapon","tool"],1,109)
 
 print("Done! (In",pygame.time.get_ticks()/1000,"seconds!)")
-
-##surf=pygame.Surface((BLOCKSIZE*2,BLOCKSIZE/1.5))
-##img=pygame.transform.rotate(itemImages[109],1)
-##
-##surf.blit(itemImages[109],(0,0))
-##surf.blit(img,(BLOCKSIZE/1.5,0))
-##surf.blit(itemImages[109],(BLOCKSIZE/1.5*2,0))
-
+p.hp=25
 while 1:
    if p.pos[1]/BLOCKSIZE<430:
       if birdNum<2 and random.randint(0,100)==100:
@@ -1489,9 +1564,9 @@ while 1:
    elif CAM.pos[1]>BOTBOARDER+BLOCKSIZE/2-screenH:
       CAM.pos=(CAM.pos[0],BOTBOARDER+BLOCKSIZE/2-screenH)
    if pygame.mouse.get_pressed()[0]:
-      if distance((p.pos[0]-CAM.pos[0],p.pos[1]-CAM.pos[1]),m)<PLAYERREACH:
-          if p.hotbar[p.selectedItem]!=None:
-             tags=p.hotbar[p.selectedItem].tags
+      if p.hotbar[p.selectedItem]!=None:
+          tags=p.hotbar[p.selectedItem].tags
+          if distance((p.pos[0]-CAM.pos[0],p.pos[1]-CAM.pos[1]),m)<PLAYERREACH:
              if "tool" in tags:
                 toolset=""
                 for i in range(len(p.hotbar[p.selectedItem].name)):
@@ -1506,6 +1581,27 @@ while 1:
                    p.hotbar[p.selectedItem].amnt-=1
                    if p.hotbar[p.selectedItem].amnt<=0:
                       p.hotbar[p.selectedItem]=None
+          if not tpressed:
+              tpressed=True
+              if "throwable" in tags: 
+                  angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
+                  vel=(-math.cos(angle)*15,-math.sin(angle)*10)
+                  Projectile(p.pos,vel,{"bounce":False},20,p.hotbar[p.selectedItem].imgIndex)
+                  p.hotbar[p.selectedItem].amnt-=1
+                  if p.hotbar[p.selectedItem].amnt==0:
+                      p.hotbar[p.selectedItem]=None
+              if "potion" in tags:
+                  if p.hotbar[p.selectedItem].name=="greater healing potion":
+                      p.hp+=100
+                  if p.hotbar[p.selectedItem].name=="lesser healing potion":
+                      p.hp+=50
+                  if p.hp>p.maxhp:
+                      p.hp=p.maxhp
+                  p.hotbar[p.selectedItem].amnt-=1
+                  if p.hotbar[p.selectedItem].amnt==0:
+                      p.hotbar[p.selectedItem]=None
+                  
+              
    else:
       tpressed=False
    if pygame.mouse.get_pressed()[2]:
@@ -1518,28 +1614,33 @@ while 1:
    else:
       altpressed=False
    if pygame.mouse.get_pressed()[1]:
-      bird((m[0]+CAM.pos[0],m[1]+CAM.pos[1]),(1,0))
+      Projectile((m[0]+CAM.pos[0],m[1]+CAM.pos[1]),(1,1),{"bounce":False},20)
    CAM.update()
    p.update()
    updateNPCS()
+   updateProjectiles()
    updateWorldItems()
    updateRecentPickups()
    screen.fill((135*globalLighting,206*globalLighting,235*globalLighting))
    #screen.blit(overworldbkg,(0,0))
    CAM.render()
    drawRecentPickups()
+   drawProjectiles()
    p.draw()
    drawWorldItems()
    drawNPCS()
    p.drawHotbar()
+   p.drawHP()
    if p.showInventory:
       p.updateInventory()
       p.drawCraftableItems()
       p.drawInventory()
    fps=clock.get_fps()
    text=font.render(str(int(fps))+"fps  "+str(int(p.pos[0]//BLOCKSIZE))+"x "+str(int(p.pos[1]//BLOCKSIZE))+"y",True,(255,255,255))
-   screen.blit(text,(screenW-200,10))
+   screen.blit(text,(screenW-180,0))
    #screen.blit(surf,(300,300))
+   #img=pygame.transform.rotate(itemImages[109],gameTick)
+   #screen.blit(img,(300,300))
    #globalLighting=math.sin(gameTick/100)/2.5+0.5
    for event in pygame.event.get():
        if event.type==QUIT:
