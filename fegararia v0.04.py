@@ -1582,7 +1582,13 @@ while 1:
           if event.key==K_k:
              WorldItem("gold chest",["block","chest"],1,(p.pos[0],p.pos[1]-200))
           if event.key==K_m:
-             WorldItem("gold coin",["coin"],1,(p.pos[0],p.pos[1]-200))
+             num=random.randint(0,2)
+             if num==0:
+                WorldItem("gold coin",["coin"],1,(p.pos[0],p.pos[1]-200))
+             elif num==1:
+                WorldItem("silver coin",["coin"],1,(p.pos[0],p.pos[1]-200))
+             elif num==2:
+                WorldItem("copper coin",["coin"],1,(p.pos[0],p.pos[1]-200))
           if event.key==K_p:
              WorldItem("gold pickaxe",["tool","pickaxe"],1,(p.pos[0],p.pos[1]-200))
           if event.key==K_w or event.key==K_SPACE:
