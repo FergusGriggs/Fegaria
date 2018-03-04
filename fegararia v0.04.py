@@ -999,11 +999,14 @@ class Player():
               self.craftingMenuPos=655-len(self.craftableItems)*60
               
       if self.grounded:
-         if self.groundedTick<0:
+         if self.groundedTick<=0:
             self.groundedTick+=7
             self.grounded=False
-            stopRight=False
-            stopLeft=False
+            #Being grounded shouldn't have anything to do with left and right motion
+            # This was causing the player to stick to walls, Other issues exist
+            # This should fix the holding left/right and sticking to walls issue.
+            #stopRight=False
+            #stopLeft=False
          else:
             self.groundedTick-=1
             
@@ -1050,12 +1053,12 @@ class Player():
                      if abs(deltaX) > abs(deltaY):
                          if deltaX > 0:
                             if val != 5:
-                                self.pos=(blockrect.right+(BLOCKSIZE/2)*playerscale,self.pos[1])
+                                self.pos=((blockrect.right+(BLOCKSIZE/2))*playerscale,self.pos[1])
                                 self.vel=(0,self.vel[1])
                                 stopLeft=True
                          else:
                             if val != 5:
-                               self.pos=(blockrect.left-(BLOCKSIZE/2)*playerscale,self.pos[1])
+                               self.pos=((blockrect.left-(BLOCKSIZE/2))*playerscale,self.pos[1])
                                self.vel=(0,self.vel[1])
                                stopRight=True
                      else:
