@@ -312,31 +312,31 @@ class Map():
             mapData[j].append([val,backval])
       print("Spawning stone...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/6)):#surface stone
-         ore(1,6,None,(300,425),None)
+         ore(1,6,None,(300,425),(6,CHUNKNUMX*CHUNKSIZE-6))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/4)):#lower stone
-         ore(1,6,None,(425,500),None,1)
+         ore(1,6,None,(425,500),(6,CHUNKNUMX*CHUNKSIZE-6),1)
       for i in range(int(CHUNKNUMX*CHUNKNUMY/4)):#boarder stone
-         ore(1,6,None,(500,500),None,1)
+         ore(1,6,None,(500,500),(6,CHUNKNUMX*CHUNKSIZE-6),1)
       val=random.randint(50,CHUNKSIZE*CHUNKNUMX-50)
       print("Spawning sand...")
       #for i in range(1):#add desert
       #   ore(18,15,None,(300,500),(val-50,val+50),18)
       print("Spawning Ores...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/3)):#coal
-         ore(34,4,None,None,None)
+         ore(34,4,None,None,(4,CHUNKNUMX*CHUNKSIZE-4))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/7)):#iron
-         ore(33,3,None,None,None)
+         ore(33,3,None,None,(4,CHUNKNUMX*CHUNKSIZE-4))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/7)):#copper
-         ore(51,3,None,None,None)
+         ore(51,3,None,None,(4,CHUNKNUMX*CHUNKSIZE-4))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/8)):#silver
-         ore(35,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),None)
+         ore(35,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#gold
-         ore(32,3,None,(550,CHUNKNUMY*CHUNKSIZE-4),None)
+         ore(32,3,None,(550,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
       print("Making Caves...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#simple caves
-         ore(0,10,None,None,None)
+         ore(0,10,None,None,(10,CHUNKNUMX*CHUNKSIZE-10))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#bigger lower caves
-         ore(0,17,None,(550,CHUNKSIZE*CHUNKNUMY-17),None)
+         ore(0,17,None,(550,CHUNKSIZE*CHUNKNUMY-17),(17,CHUNKNUMX*CHUNKSIZE-17))
       print("Adding Loot... (",int(CHUNKNUMX*CHUNKNUMY/75),")")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/10)):#Chest rooms
          chestRoom((random.randint(4,CHUNKNUMX*CHUNKSIZE-4),random.randint(500,CHUNKNUMY*CHUNKSIZE-4)))
