@@ -1,4 +1,5 @@
-import pygame, sys, math, time, os, random, noise, threading
+#Plaform include necessary for determining how to import fonts
+import pygame, sys, math, time, os, random, noise, threading, platform
 from pygame.locals import *
 pygame.init()
 VERSION=0.04
@@ -1302,7 +1303,12 @@ NPCS=[]
 
 birdNum=0
 
-font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
+
+if platform.system() == "Darwin": #Resolves Font Errors on OSX : User is required to Install
+  font=pygame.font.SysFont("ARCADECLASSIC.TFF",20)
+else :
+  font=pygame.font.Font("ARCADECLASSIC.TTF",20)
+
 clock=pygame.time.Clock()
 
 basicRecipies=[#[out item name,out item tags,out item quantity,out item imgIndex,[in items, in item quianties]]
