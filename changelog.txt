@@ -4,7 +4,10 @@
 -adjusted chest room spawn rate
 -updated most item textures
 -added functionality for throwing knife and shuriken
--added player hp
+-added wooden bow
+-added wooden arrow
+-added hp bar
+-added functionality for health potions
 -added Brinefreak
 -removed Brinefreak
 03/03/2018-v0.0.3-------------------------------------------------------

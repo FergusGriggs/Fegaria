@@ -7,7 +7,7 @@ screenW=screenObj.current_w
 screenH=screenObj.current_h
 screenW,screenH=1200,1000
 screen=pygame.display.set_mode((screenW,screenH))#,FULLSCREEN)
-pygame.display.set_caption('fegararia'+" v"+str(VERSION))
+pygame.display.set_caption("fegararia v"+str(VERSION))
 
 overworldbkg=pygame.transform.scale(pygame.image.load("Textures/overworldbkg.png"),(screenW,screenH))
 playerscale=1
@@ -282,6 +282,7 @@ class Projectile():
         self.rect=Rect(self.pos[0]-rectsize/2,self.pos[1]-rectsize/2,rectsize,rectsize)
         projectiles.append(self)
     def update(self):
+        self.angle=math.atan2(self.vel[1],-self.vel[0])*180/math.pi
         self.vel=(self.vel[0]*0.99,self.vel[1]*0.99+0.2)
         self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
         self.rect.left=self.pos[0]-self.rect.width/2
@@ -326,8 +327,16 @@ class Projectile():
                                  destroy=True
         if destroy:
             projectiles.remove(self)
+        for NPC in NPCS:
+            if NPC.rect.colliderect(self.rect):
+                NPCS.remove(NPC)
     def draw(self):
-        screen.blit(itemImages[self.imgIndex],(self.pos[0]-self.rect.width/2-CAM.pos[0],self.pos[1]-self.rect.height/2-CAM.pos[1]))
+        self.surf=pygame.Surface((int(BLOCKSIZE/1.5),int(BLOCKSIZE/1.5)))
+        self.surf.fill((255,0,255))
+        self.surf.blit(itemImages[self.imgIndex],(0,0))
+        self.surf.set_colorkey((255,0,255))
+        self.surf=pygame.transform.rotate(self.surf,self.angle-90)
+        screen.blit(self.surf,(self.pos[0]-self.rect.width/2-CAM.pos[0],self.pos[1]-self.rect.height/2-CAM.pos[1]))
 class Map():
    def __init__(self,xchunks,ychunks,CHUNKSIZE,BLOCKSIZE):
       self.CHUNKSIZE=CHUNKSIZE
@@ -1283,6 +1292,8 @@ def getItemImgIndex(name):
    if name=="throwing knife":return 121
    if name=="shuriken":return 137
    if name=="sponge":return 48
+   if name=="wooden bow":return 136
+   if name=="wooden arrow":return 153
 def getInfoFromVal(val):
    if val==1:return ["cobble",["material","block"]]
    if val==4:return ["wood",["material","block"]]
@@ -1415,6 +1426,8 @@ tableRecipies=[
    ["gold hammer",["tool","hammer"],1,[["wood",["block","material"],10],["gold bar",["material"],5]]],
    ["gold sword",["weapon","tool"],1,[["wood",["block","material"],10],["gold bar",["material"],5]]],
    ["sponge",["block"],1,[["stone",["block","material"],100]]],
+   ["wooden bow",["weapon","bow"],1,[["wood",["block","material"],10]]],
+   ["wooden arrow",["ammunition","arrow"],25,[["wood",["block","material"],1],["cobble",["block","material"],1]]],
    ]
 furnaceRecipies=[
    ["iron bar",["material"],1,[["iron",["ore"],3]]],
@@ -1492,6 +1505,7 @@ movingDownTimer=0
 pressed=False
 altpressed=False
 tpressed=False
+t2pressed=False
 itemHolding=None
 itemPos=None
 
@@ -1581,8 +1595,8 @@ while 1:
                    p.hotbar[p.selectedItem].amnt-=1
                    if p.hotbar[p.selectedItem].amnt<=0:
                       p.hotbar[p.selectedItem]=None
-          if not tpressed:
-              tpressed=True
+          if not t2pressed:
+              t2pressed=True
               if "throwable" in tags: 
                   angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
                   vel=(-math.cos(angle)*15,-math.sin(angle)*10)
@@ -1600,10 +1614,16 @@ while 1:
                   p.hotbar[p.selectedItem].amnt-=1
                   if p.hotbar[p.selectedItem].amnt==0:
                       p.hotbar[p.selectedItem]=None
+              if "bow" in tags:
+                  angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
+                  vel=(-math.cos(angle)*20,-math.sin(angle)*20)
+                  Projectile(p.pos,vel,{"bounce":False},20,153)
+                  
                   
               
    else:
       tpressed=False
+      t2pressed=False
    if pygame.mouse.get_pressed()[2]:
       if not altpressed:
          altpressed=True
