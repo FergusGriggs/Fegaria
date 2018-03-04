@@ -274,15 +274,20 @@ class Item():
       self.amnt=amnt
       self.imgIndex=imgIndex
 class Projectile():
-    def __init__(self,pos,vel,stats,rectsize,imgIndex):#pos = tuple, vel=tuple, stats=dict
+    def __init__(self,pos,vel,tags,stats,rectsize,imgIndex):#pos = tuple, vel=tuple, stats=dict
         self.pos=pos
         self.vel=vel
+        self.tags=tags
         self.imgIndex=imgIndex
         self.stats=stats
         self.rect=Rect(self.pos[0]-rectsize/2,self.pos[1]-rectsize/2,rectsize,rectsize)
+        self.angle=0
         projectiles.append(self)
     def update(self):
-        self.angle=math.atan2(self.vel[1],-self.vel[0])*180/math.pi
+        if "bow" in self.tags:
+            self.angle=math.atan2(self.vel[1],-self.vel[0])*180/math.pi
+        else:
+           self.angle+=10 
         self.vel=(self.vel[0]*0.99,self.vel[1]*0.99+0.2)
         self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
         self.rect.left=self.pos[0]-self.rect.width/2
@@ -1600,7 +1605,7 @@ while 1:
               if "throwable" in tags: 
                   angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
                   vel=(-math.cos(angle)*15,-math.sin(angle)*10)
-                  Projectile(p.pos,vel,{"bounce":False},20,p.hotbar[p.selectedItem].imgIndex)
+                  Projectile(p.pos,vel,p.hotbar[p.selectedItem].tags,{"bounce":False},20,p.hotbar[p.selectedItem].imgIndex)
                   p.hotbar[p.selectedItem].amnt-=1
                   if p.hotbar[p.selectedItem].amnt==0:
                       p.hotbar[p.selectedItem]=None
@@ -1617,7 +1622,7 @@ while 1:
               if "bow" in tags:
                   angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
                   vel=(-math.cos(angle)*20,-math.sin(angle)*20)
-                  Projectile(p.pos,vel,{"bounce":False},20,153)
+                  Projectile(p.pos,vel,p.hotbar[p.selectedItem].tags,{"bounce":False},20,153)
                   
                   
               
@@ -1633,8 +1638,6 @@ while 1:
          CAM.altclickBlock(m,tags)
    else:
       altpressed=False
-   if pygame.mouse.get_pressed()[1]:
-      Projectile((m[0]+CAM.pos[0],m[1]+CAM.pos[1]),(1,1),{"bounce":False},20)
    CAM.update()
    p.update()
    updateNPCS()
