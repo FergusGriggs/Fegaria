@@ -337,8 +337,8 @@ class Map():
          ore(0,10,None,None,(10,CHUNKNUMX*CHUNKSIZE-10))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#bigger lower caves
          ore(0,17,None,(550,CHUNKSIZE*CHUNKNUMY-17),(17,CHUNKNUMX*CHUNKSIZE-17))
-      print("Adding Loot... (",int(CHUNKNUMX*CHUNKNUMY/75),")")
-      for i in range(int(CHUNKNUMX*CHUNKNUMY/10)):#Chest rooms
+      print("Adding Loot... (",int(CHUNKNUMX*CHUNKNUMY/200),")")
+      for i in range(int(CHUNKNUMX*CHUNKNUMY/200)):#Chest rooms
          chestRoom((random.randint(4,CHUNKNUMX*CHUNKSIZE-4),random.randint(500,CHUNKNUMY*CHUNKSIZE-4)))
       print("Growing Trees...")
       for i in range(int(CHUNKNUMX*CHUNKSIZE/3.5)):

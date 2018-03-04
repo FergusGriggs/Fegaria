@@ -1,6 +1,7 @@
 03/03/2018-v0.0.4-------------------------------------------------------
 -added sponge
 -fixed index error crash when generating terrain
+-adjusted chest room spawn rate
 -added Brinefreak
 -removed Brinefreak
 03/03/2018-v0.0.3-------------------------------------------------------
