@@ -1053,12 +1053,12 @@ class Player():
                      if abs(deltaX) > abs(deltaY):
                          if deltaX > 0:
                             if val != 5:
-                                self.pos=((blockrect.right+(BLOCKSIZE/2))*playerscale,self.pos[1])
+                                self.pos=(blockrect.right+(BLOCKSIZE/2)*playerscale,self.pos[1])
                                 self.vel=(0,self.vel[1])
                                 stopLeft=True
                          else:
                             if val != 5:
-                               self.pos=((blockrect.left-(BLOCKSIZE/2))*playerscale,self.pos[1])
+                               self.pos=(blockrect.left-(BLOCKSIZE/2)*playerscale,self.pos[1])
                                self.vel=(0,self.vel[1])
                                stopRight=True
                      else:
