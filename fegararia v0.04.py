@@ -1167,7 +1167,7 @@ def drawWorldItems():
 def getItemImgIndex(name):
    if name=="wood":return 4
    if name=="dirt":return 2
-   if name=="stone":return 16
+   if name=="stone":return 1
    if name=="copper":return 226
    if name=="iron":return 210
    if name=="coal":return 194
