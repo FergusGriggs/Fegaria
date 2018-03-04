@@ -1,3 +1,7 @@
+03/03/2018-v0.0.4-------------------------------------------------------
+-added sponge
+-added Brinefreak
+-removed Brinefreak
 03/03/2018-v0.0.3-------------------------------------------------------
 -added item iron pickaxe
 -added item iron axe

@@ -1,11 +1,13 @@
 ###TODO###
 ---------IMPORTANT----------
 -code health
------------LESSER-----------
 -code enemy zombie
+-use multiple threads for lighting
+-----------LESSER-----------
+-code sword
+-make NPCs
 -code saving
 -add armour
--add sword
 -add music
 -add sfx
 -add hud/map
