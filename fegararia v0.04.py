@@ -1,4 +1,5 @@
-import pygame, sys, math, time, os, random, noise, threading
+#Plaform include necessary for determining how to import fonts
+import pygame, sys, math, time, os, random, noise, threading, platform
 from pygame.locals import *
 pygame.init()
 VERSION=0.04
@@ -1076,11 +1077,14 @@ class Player():
               self.craftingMenuPos=655-len(self.craftableItems)*60
               
       if self.grounded:
-         if self.groundedTick<0:
+         if self.groundedTick<=0:
             self.groundedTick+=7
             self.grounded=False
-            stopRight=False
-            stopLeft=False
+            #Being grounded shouldn't have anything to do with left and right motion
+            # This was causing the player to stick to walls, Other issues exist
+            # This should fix the holding left/right and sticking to walls issue.
+            #stopRight=False
+            #stopLeft=False
          else:
             self.groundedTick-=1
             
@@ -1399,7 +1403,12 @@ projectiles=[]
 
 birdNum=0
 
-font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
+
+if platform.system() == "Darwin": #Resolves Font Errors on OSX : User is required to Install
+  font=pygame.font.SysFont("ARCADECLASSIC.TFF",20)
+else :
+  font=pygame.font.Font("ARCADECLASSIC.TTF",20)
+
 clock=pygame.time.Clock()
 
 basicRecipies=[#[out item name,out item tags,out item quantity,out item imgIndex,[in items, in item quianties]]
