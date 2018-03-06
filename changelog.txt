@@ -1,4 +1,37 @@
-03-04/03/2018-v0.0.4----------------------------------------------------
+06/03/2018-v0.0.5-------------------------------------------------------
+-added throwable grenade
+-improved throwable animations
+-added gem amethyst
+-added gem ruby
+-added gem topaz
+-added gem sapphire
+-added gem diamond
+-added magic weapon amethyst staff
+-added magic weapon ruby staff
+-added magic weapon topaz staff
+-added magic weapon sapphire staff
+-added magic weapon diamond staff
+-added block lead ore
+-added item lead ore
+-added item lead bar
+-added block iron anvil
+-added weapon copper bow
+-added weapon iron bow
+-added weapon lead bow
+-added weapon silver bow
+-added weapon gold bow
+-added block diamond ore
+-added block topaz ore
+-added block sapphire ore
+-added block ruby ore
+-added block amethyst ore
+-added hp damage numbers
+-added critical hits
+-added coin slots and ammo slots in inventory
+-reduced crafting code
+-added death/respawning mechanic
+-removed Brinefreak
+03-04-05/03/2018-v0.0.4-------------------------------------------------
 -added sponge
 -fixed index error crash when generating terrain
 -adjusted chest room spawn rate
@@ -8,6 +41,7 @@
 -added wooden arrow
 -added hp bar
 -added functionality for health potions
+-added loot block pot
 -added Brinefreak
 -removed Brinefreak
 03/03/2018-v0.0.3-------------------------------------------------------

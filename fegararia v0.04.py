@@ -1,20 +1,20 @@
-import pygame, sys, math, time, os, random, noise, threading
+import pygame, sys, math, time, os, random, noise, threading, platform
 from pygame.locals import *
 pygame.init()
-VERSION=0.04
+VERSION=0.05
 screenObj=pygame.display.Info()
 screenW=screenObj.current_w
 screenH=screenObj.current_h
 screenW,screenH=1200,1000
 screen=pygame.display.set_mode((screenW,screenH))#,FULLSCREEN)
 pygame.display.set_caption("fegararia v"+str(VERSION))
-
 overworldbkg=pygame.transform.scale(pygame.image.load("Textures/overworldbkg.png"),(screenW,screenH))
 playerscale=1
 #when saving the following need to be saved:
 #Player class
 #mapData array
 #chest Data array
+showHitBoxes=False
 def loadMiscIcons():
     global miscIcons
     miscIconTilesheet=pygame.transform.scale(pygame.image.load("Textures/misc.png"),(50,100))
@@ -72,6 +72,13 @@ def assembleHotbarBack():
    for i in range(10):
       pygame.draw.rect(hotbarback,(200,200,200),Rect(i*61,0,60,60),5)
    hotbarback.set_alpha(200)
+def assembleAmmunitionBack():
+   global ammunitionBack
+   ammunitionBack=pygame.Surface((60,240))
+   pygame.draw.rect(ammunitionBack,(150,150,150),Rect(0,0,60,240),0)
+   for j in range(4):
+      pygame.draw.rect(ammunitionBack,(200,200,200),Rect(0,j*61,60,60),5)
+   ammunitionBack.set_alpha(200)
 def assembleInventoryBack():
    global inventoryback
    inventoryback=pygame.Surface((610,243))
@@ -169,6 +176,13 @@ class NPC():
                             if self.vel[1]>0:
                                self.vel=(self.vel[0]*0.5,0)
       return collides
+   def damage(self,val,crit):
+       if crit:col=(255,0,0)
+       else:col=(200,100,0)
+       damagePopUps.append([val,col,100,(self.pos[0]+random.randint(-20,20),self.pos[1]+30+random.randint(-20,20))])
+       self.hp-=val
+       if self.hp<=0:
+           self.kill()
 class bird(NPC):
    def __init__(self,pos,vel):
       global birdNum
@@ -181,6 +195,7 @@ class bird(NPC):
          self.direction=0
       self.animationTick=0
       self.col=random.randint(0,1)
+      self.hp=5
       NPCS.append(self)
       birdNum+=1
    def update(self):
@@ -207,14 +222,20 @@ class bird(NPC):
          self.animationTick=20
       self.vel=(self.vel[0],self.vel[1]+0.05)
       self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
-      self.rect=Rect(self.pos[0]-10,self.pos[1]-10,20,20)
+      self.rect=Rect(self.pos[0],self.pos[1],20,20)
    def draw(self):
       screen.blit(birdImages[self.animationFrame+self.direction*2+self.col*4],(self.pos[0]-CAM.pos[0],self.pos[1]-CAM.pos[1]))
+      if showHitBoxes:
+          pygame.draw.rect(screen,(255,0,0),Rect(self.rect.left-CAM.pos[0],self.rect.top-CAM.pos[1],self.rect.width,self.rect.height),2)
+   def kill(self):
+       global birdNum
+       birdNum-=1
+       NPCS.remove(self)
 class WorldItem():
-   def __init__(self,name,tags,amnt,pos):
+   def __init__(self,name,amnt,pos):
       global worldItems
       self.name=name
-      self.tags=tags
+      self.tags=getTagsFromName(name)
       self.imgIndex=getItemImgIndex(name)
       self.pos=(pos[0]-BLOCKSIZE/3,pos[1]-BLOCKSIZE/3)
       self.rect=Rect(pos[0]-BLOCKSIZE/3,pos[1]-BLOCKSIZE/3,BLOCKSIZE/1.5,BLOCKSIZE/1.5)
@@ -228,8 +249,9 @@ class WorldItem():
           worldItems.remove(self)
       else:
           self.age+=1
-      if distance(self.pos,p.pos)<BLOCKSIZE*3:
-         self.vel=((p.pos[0]-self.pos[0])/15,(p.pos[1]-self.pos[1])/15)
+      if p.alive:
+          if distance(self.pos,p.pos)<BLOCKSIZE*3:
+             self.vel=((p.pos[0]-self.pos[0])/15,(p.pos[1]-self.pos[1])/15)
       self.vel=(self.vel[0],self.vel[1]+0.2)
       self.vel=(self.vel[0]*0.99,self.vel[1]*0.99+0.05)
       if self.vel[1]>5:
@@ -262,86 +284,125 @@ class WorldItem():
                          self.pos=(self.pos[0],blockrect.top-BLOCKSIZE/3)
                          if self.vel[1]>0:
                             self.vel=(self.vel[0]*0.5,0)
-      if p.rect.colliderect(self.rect):
-         p.changeItem(self.name,self.tags,self.amnt,self.imgIndex)
-         worldItems.remove(self)
+      if p.alive:
+          if p.rect.colliderect(self.rect):
+             p.changeItem(self.name,self.amnt)
+             worldItems.remove(self)
    def draw(self):
       screen.blit(itemImages[self.imgIndex],(int(self.rect.left-CAM.pos[0]),int(self.rect.top-CAM.pos[1])))
 class Item():
-   def __init__(self,name,tags,amnt,imgIndex):
+   def __init__(self,name,amnt):
       self.name=name
-      self.tags=tags
+      self.tags=getTagsFromName(name)
       self.amnt=amnt
-      self.imgIndex=imgIndex
+      self.imgIndex=getItemImgIndex(name)
 class Projectile():
-    def __init__(self,pos,vel,tags,stats,rectsize,imgIndex):#pos = tuple, vel=tuple, stats=dict
+    def __init__(self,pos,vel,ammoinfo,stats,rectsize,imgIndex):#pos = tuple, vel=tuple, stats=dict
         self.pos=pos
         self.vel=vel
-        self.tags=tags
+        self.ammoinfo=ammoinfo
         self.imgIndex=imgIndex
         self.stats=stats
         self.rect=Rect(self.pos[0]-rectsize/2,self.pos[1]-rectsize/2,rectsize,rectsize)
-        self.angle=0
+        self.originialsize=self.rect.height
+        self.angle=random.randint(0,360)
         projectiles.append(self)
     def update(self):
-        if "bow" in self.tags:
+        if "arrow" in self.ammoinfo[1]:
             self.angle=math.atan2(self.vel[1],-self.vel[0])*180/math.pi
+        elif "grenade" in self.ammoinfo[1]:
+           speed =math.sqrt(self.vel[0]**2+self.vel[1]**2)
+           self.angle+=speed
         else:
-           self.angle+=10 
-        self.vel=(self.vel[0]*0.99,self.vel[1]*0.99+0.2)
+            self.angle+=10
+        self.vel=(self.vel[0]*self.stats["air resistance"],self.vel[1]*self.stats["air resistance"]+self.stats["gravity"])
         self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
-        self.rect.left=self.pos[0]-self.rect.width/2
-        self.rect.top=self.pos[1]-self.rect.height/2
+        self.rect.left=self.pos[0]
+        self.rect.top=self.pos[1]
         blockpos=(math.floor(self.rect.centerx//BLOCKSIZE),math.floor(self.rect.centery//BLOCKSIZE))
         destroy=False
-        for i in range(3):
-            for j in range(3):
-                val=mapData[blockpos[1]+j-1-CHUNKSIZE][blockpos[0]+i-1-CHUNKSIZE][0]
-                if val not in uncollidableBlocks:
-                   blockrect=Rect(BLOCKSIZE*(blockpos[0]+i-1),BLOCKSIZE*(blockpos[1]+j-1),BLOCKSIZE,BLOCKSIZE)
-                   if blockrect.colliderect(self.rect):
-                      deltaX = self.rect.centerx-blockrect.centerx
-                      deltaY = self.rect.centery-blockrect.centery
-                      if abs(deltaX) > abs(deltaY):
-                          if deltaX > 0:
-                              if self.stats["bounce"]==True:
-                                  self.pos=(blockrect.right+self.rect.width/2,self.pos[1])
-                                  self.vel=(0,self.vel[1])
+        try:
+            for i in range(3):
+                for j in range(3):
+                    val=mapData[blockpos[1]+j-1-CHUNKSIZE][blockpos[0]+i-1-CHUNKSIZE][0]
+                    if val not in uncollidableBlocks:
+                       blockrect=Rect(BLOCKSIZE*(blockpos[0]+i-1),BLOCKSIZE*(blockpos[1]+j-1),BLOCKSIZE,BLOCKSIZE)
+                       if blockrect.colliderect(self.rect):
+                          deltaX = self.rect.centerx-blockrect.centerx
+                          deltaY = self.rect.centery-blockrect.centery
+                          if abs(deltaX) > abs(deltaY):
+                              if deltaX > 0:
+                                  if self.stats["bounce"]==True:
+                                      if self.stats["bounceNum"]>0:
+                                          self.stats["bounceNum"]-=1
+                                          self.pos=(blockrect.right,self.pos[1])
+                                          self.vel=(-self.vel[0]*0.9,self.vel[1])
+                                      else:
+                                          destroy=True
+                                  else:
+                                      destroy=True
                               else:
-                                  destroy=True
+                                  if self.stats["bounce"]==True:
+                                      if self.stats["bounceNum"]>0:
+                                          self.stats["bounceNum"]-=1
+                                          self.pos=(blockrect.left-self.rect.width,self.pos[1])
+                                          self.vel=(-self.vel[0]*0.9,self.vel[1])
+                                      else:
+                                          destroy=True
+                                  else:
+                                      destroy=True
                           else:
-                              if self.stats["bounce"]==True:
-                                  self.pos=(blockrect.left-self.rect.width/2,self.pos[1])
-                                  self.vel=(0,self.vel[1])
+                              if deltaY > 0:
+                                  if self.stats["bounce"]==True:
+                                      if self.stats["bounceNum"]>0:
+                                          self.stats["bounceNum"]-=1
+                                          self.pos=(self.pos[0],blockrect.bottom)
+                                          if self.vel[1]<0:
+                                             self.vel=(self.vel[0],-self.vel[1]*0.9)
+                                      else:
+                                          destroy=True
+                                  else:
+                                      destroy=True
                               else:
-                                  destroy=True
-                      else:
-                          if deltaY > 0:
-                              if self.stats["bounce"]==True:
-                                  self.pos=(self.pos[0],blockrect.bottom+self.rect.height/2)
-                                  if self.vel[1]<0:
-                                     self.vel=(self.vel[0],0)
-                              else:
-                                  destroy=True
-                          else:
-                             if self.stats["bounce"]==True:
-                                 self.pos=(self.pos[0],blockrect.top-self.rect.height/2)
-                                 if self.vel[1]>0:
-                                     self.vel=(self.vel[0]*0.5,0)
-                             else:
-                                 destroy=True
+                                 if self.stats["bounce"]==True:
+                                     if self.stats["bounceNum"]>0:
+                                         self.stats["bounceNum"]-=1
+                                         self.pos=(self.pos[0],blockrect.top-self.rect.height)
+                                         if self.vel[1]>0:
+                                             self.vel=(self.vel[0]*0.5,-self.vel[1]*0.9)
+                                     else:
+                                          destroy=True
+                                 else:
+                                     destroy=True
+        except:None
+        if self.stats["age"]==True:
+            self.stats["life"]-=1
+            if self.stats["life"]<=0:
+                destroy=True
         if destroy:
+            if "grenade" in self.ammoinfo[1]:
+                for NPC in NPCS:
+                    if distance(NPC.pos,self.pos)<BLOCKSIZE*2.5:
+                        NPC.damage(self.stats["damage"],self.stats["crit"])
+                if distance(p.pos,self.pos)<BLOCKSIZE*4:
+                    p.damage(self.stats["damage"],self.stats["crit"])
             projectiles.remove(self)
+            if self.stats["dropammo"]==True:
+                if random.randint(0,2)==2:
+                    WorldItem(self.ammoinfo[0],1,self.pos)
         for NPC in NPCS:
-            if NPC.rect.colliderect(self.rect):
-                NPCS.remove(NPC)
+            if self.stats["damaging"]==True:
+                if NPC.rect.colliderect(self.rect):
+                    NPC.damage(self.stats["damage"],self.stats["crit"])
     def draw(self):
         self.surf=pygame.Surface((int(BLOCKSIZE/1.5),int(BLOCKSIZE/1.5)))
         self.surf.fill((255,0,255))
         self.surf.blit(itemImages[self.imgIndex],(0,0))
         self.surf.set_colorkey((255,0,255))
-        self.surf=pygame.transform.rotate(self.surf,self.angle-90)
+        self.surf=rot_center(self.surf,self.angle-90)
         screen.blit(self.surf,(self.pos[0]-self.rect.width/2-CAM.pos[0],self.pos[1]-self.rect.height/2-CAM.pos[1]))
+        if showHitBoxes:
+            pygame.draw.rect(screen,(255,0,0),Rect(self.rect.left-CAM.pos[0],self.rect.top-CAM.pos[1],self.rect.width,self.rect.height),2)
 class Map():
    def __init__(self,xchunks,ychunks,CHUNKSIZE,BLOCKSIZE):
       self.CHUNKSIZE=CHUNKSIZE
@@ -400,14 +461,21 @@ class Map():
       print("Spawning Ores...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/3)):#coal
          ore(34,4,None,None,(4,CHUNKNUMX*CHUNKSIZE-4))
-      for i in range(int(CHUNKNUMX*CHUNKNUMY/7)):#iron
+      for i in range(int(CHUNKNUMX*CHUNKNUMY/7)):#iron,copper,lead
          ore(33,3,None,None,(4,CHUNKNUMX*CHUNKSIZE-4))
-      for i in range(int(CHUNKNUMX*CHUNKNUMY/7)):#copper
          ore(51,3,None,None,(4,CHUNKNUMX*CHUNKSIZE-4))
+         ore(52,3,None,None,(4,CHUNKNUMX*CHUNKSIZE-4))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/8)):#silver
          ore(35,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#gold
          ore(32,3,None,(550,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
+      print("Growing Gemstones...")
+      for i in range(int(CHUNKNUMX*CHUNKNUMY/100)):#gems
+         ore(64,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
+         ore(65,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
+         ore(66,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
+         ore(67,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
+         ore(50,3,None,(450,CHUNKNUMY*CHUNKSIZE-4),(4,CHUNKNUMX*CHUNKSIZE-4))
       print("Making Caves...")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/12)):#simple caves
          ore(0,10,None,None,(10,CHUNKNUMX*CHUNKSIZE-10))
@@ -416,6 +484,8 @@ class Map():
       print("Adding Loot... (",int(CHUNKNUMX*CHUNKNUMY/200),")")
       for i in range(int(CHUNKNUMX*CHUNKNUMY/200)):#Chest rooms
          chestRoom((random.randint(4,CHUNKNUMX*CHUNKSIZE-4),random.randint(500,CHUNKNUMY*CHUNKSIZE-4)))
+      for i in range(int(CHUNKNUMX*CHUNKNUMY/3)):
+          pot((random.randint(0,CHUNKNUMX*CHUNKSIZE-1),random.randint(420,CHUNKNUMY*CHUNKSIZE-12)))
       print("Growing Trees...")
       for i in range(int(CHUNKNUMX*CHUNKSIZE/3.5)):
          tree((random.randint(0,CHUNKNUMX*CHUNKSIZE),200))
@@ -613,58 +683,65 @@ class Cam():
          else:
             self.updateTick+=1
    def damageBlock(self,val,screenPos,tags):
-      global mapData
-      try:
-         actualPos=(screenPos[0]+int(self.pos[0]),screenPos[1]+int(self.pos[1]))
-         chunkPos=(actualPos[0]//(CHUNKSIZE*BLOCKSIZE),actualPos[1]//(CHUNKSIZE*BLOCKSIZE))
-         inChunkPos=((actualPos[0]-chunkPos[0]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE,(actualPos[1]-chunkPos[1]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE)
-         if "pickaxe" in tags:
-            if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val>0:
-               if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity>0:
-                  CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity-=val
-                  CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-                  if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity<=0:
-                     info = getInfoFromVal(CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val)
-                     CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val=0
-                     CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-                     WorldItem(info[0],info[1],1,(chunkPos[0]*CHUNKSIZE*BLOCKSIZE+inChunkPos[0]*BLOCKSIZE+2/3*BLOCKSIZE,chunkPos[1]*CHUNKSIZE*BLOCKSIZE+inChunkPos[1]*BLOCKSIZE+2/3*BLOCKSIZE))
-                     mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]=0
-         if "axe" in tags:
-            backval=CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval
-            if backval==19 or backval==20:
-               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity-=val
+     global mapData
+      #try:
+     actualPos=(screenPos[0]+int(self.pos[0]),screenPos[1]+int(self.pos[1]))
+     chunkPos=(actualPos[0]//(CHUNKSIZE*BLOCKSIZE),actualPos[1]//(CHUNKSIZE*BLOCKSIZE))
+     inChunkPos=((actualPos[0]-chunkPos[0]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE,(actualPos[1]-chunkPos[1]*CHUNKSIZE*BLOCKSIZE)//BLOCKSIZE)
+     if "pickaxe" in tags:
+        bval =CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val
+        if bval>0:
+           if bval==54 or bval==55:
+               potLoot(actualPos)
+               mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]=0
+               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val=0
                CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-               if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity<=0:
-                  CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=0
-                  CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-                  pos=((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE)
-                  mapData[pos[1]][pos[0]][1]=0
-                  chunksVisited=[]
-                  for i in range(20):
-                     pos=(pos[0],pos[1]-1)
-                     if mapData[pos[1]][pos[0]][1]==20 or mapData[pos[1]][pos[0]][1]==21:
-                        mapData[pos[1]][pos[0]][1]=0
-                        bchunkPos=(pos[0]//CHUNKSIZE+1,pos[1]//CHUNKSIZE+1)
-                        if bchunkPos not in chunksVisited:
-                           chunksVisited.append(bchunkPos)
-                        binChunkPos=(pos[0]-bchunkPos[0]*CHUNKSIZE,pos[1]-bchunkPos[1]*CHUNKSIZE)
-                        CAM.Map.chunks[bchunkPos[1]][bchunkPos[0]].blocks[binChunkPos[0]][binChunkPos[1]].backval=0
-                        WorldItem("wood",["material","block"],random.randint(2,3),((pos[0]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE,(pos[1]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE))
-                        if random.randint(0,7)==0:
-                           WorldItem("acorn",["block"],1,((pos[0]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE,(pos[1]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE))
-                     else:
-                        for i in range(len(chunksVisited)):
-                           CAM.Map.chunks[chunksVisited[i][1]][chunksVisited[i][0]].updateSurface()
-         if "hammer" in tags:
-            backval=CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval
-            if backval!=0 and backval!=19 and backval!=20 and backval!=21:
-               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity-=val
-               CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-               if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity<=0:
-                  CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=0
-                  mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]=0
-                  CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
-      except:print("mouse off screen")
+               return
+           if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity>0:
+              CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity-=val
+              CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+              if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].integrity<=0:
+                 info = getInfoFromVal(bval)
+                 CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].val=0
+                 CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+                 WorldItem(info[0],1,(chunkPos[0]*CHUNKSIZE*BLOCKSIZE+inChunkPos[0]*BLOCKSIZE+2/3*BLOCKSIZE,chunkPos[1]*CHUNKSIZE*BLOCKSIZE+inChunkPos[1]*BLOCKSIZE+2/3*BLOCKSIZE))
+                 mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][0]=0
+     if "axe" in tags:
+        backval=CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval
+        if backval==19 or backval==20:
+           CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity-=val
+           CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+           if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity<=0:
+              CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=0
+              CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+              pos=((actualPos[0]//BLOCKSIZE)-CHUNKSIZE,(actualPos[1]//BLOCKSIZE)-CHUNKSIZE)
+              mapData[pos[1]][pos[0]][1]=0
+              chunksVisited=[]
+              for i in range(20):
+                 pos=(pos[0],pos[1]-1)
+                 if mapData[pos[1]][pos[0]][1]==20 or mapData[pos[1]][pos[0]][1]==21:
+                    mapData[pos[1]][pos[0]][1]=0
+                    bchunkPos=(pos[0]//CHUNKSIZE+1,pos[1]//CHUNKSIZE+1)
+                    if bchunkPos not in chunksVisited:
+                       chunksVisited.append(bchunkPos)
+                    binChunkPos=(pos[0]-bchunkPos[0]*CHUNKSIZE,pos[1]-bchunkPos[1]*CHUNKSIZE)
+                    CAM.Map.chunks[bchunkPos[1]][bchunkPos[0]].blocks[binChunkPos[0]][binChunkPos[1]].backval=0
+                    WorldItem("wood",random.randint(2,3),((pos[0]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE,(pos[1]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE))
+                    if random.randint(0,7)==0:
+                       WorldItem("acorn",1,((pos[0]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE,(pos[1]+CHUNKSIZE)*BLOCKSIZE+BLOCKSIZE))
+                 else:
+                    for i in range(len(chunksVisited)):
+                       CAM.Map.chunks[chunksVisited[i][1]][chunksVisited[i][0]].updateSurface()
+     if "hammer" in tags:
+        backval=CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval
+        if backval!=0 and backval!=19 and backval!=20 and backval!=21:
+           CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity-=val
+           CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+           if CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backintegrity<=0:
+              CAM.Map.chunks[chunkPos[1]][chunkPos[0]].blocks[inChunkPos[0]][inChunkPos[1]].backval=0
+              mapData[(actualPos[1]//BLOCKSIZE)-CHUNKSIZE][(actualPos[0]//BLOCKSIZE)-CHUNKSIZE][1]=0
+              CAM.Map.chunks[chunkPos[1]][chunkPos[0]].updateSurface()
+      #except:print("mouse off screen")
    def placeBlock(self,name,tags,screenPos):
       global mapData, chestData,tpressed
       actualPos=(screenPos[0]+int(self.pos[0]),screenPos[1]+int(self.pos[1]))
@@ -757,6 +834,8 @@ class Player():
       self.grounded=False
       self.hotbar=[None for i in range(10)]
       self.inventory=[[None for i in range(4)]for i in range(10)]
+      self.coinSlots=[None for i in range(4)]
+      self.ammoSlots=[None for i in range(4)]
       self.showInventory=False
       self.selectedItem=0
       self.craftableItems=[]
@@ -766,10 +845,13 @@ class Player():
       self.craftingSlotDelay=0
       self.craftingTableInRange=False
       self.furnaceInRange=False
+      self.anvilInRange=False
       self.chestOpen=False
       self.chestItems=None
+      self.alive=True
       self.craftItemName=""
       self.craftItemComponents=[]
+      self.respawnTick=0
    def drawHotbar(self):
       screen.blit(hotbarback,(10,10))
       for i in range(10):
@@ -781,7 +863,6 @@ class Player():
       pygame.draw.rect(screen,(255,255,0),Rect(10+self.selectedItem*61,10,60,60),5)
    def updateCraftableItems(self,findItem=None):
        self.itemList=[]
-       self.craftableItems=[]
        for i in range(10):
            if self.hotbar[i]!=None:
                found=False
@@ -791,7 +872,7 @@ class Player():
                        found=True
                        break
                if not found:
-                   self.itemList.append(Item(self.hotbar[i].name,self.hotbar[i].tags,self.hotbar[i].amnt,self.hotbar[i].imgIndex))
+                   self.itemList.append(Item(self.hotbar[i].name,self.hotbar[i].amnt))
        for i in range(10):
            for j in range(4):
                if self.inventory[i][j]!=None:
@@ -802,36 +883,47 @@ class Player():
                            found=True
                            break
                    if not found:
-                       self.itemList.append(Item(self.inventory[i][j].name,self.inventory[i][j].tags,self.inventory[i][j].amnt,self.inventory[i][j].imgIndex))
+                       self.itemList.append(Item(self.inventory[i][j].name,self.inventory[i][j].amnt))
+       self.craftableItems=[]
        for i in range(len(basicRecipies)):
           partscomplete=0
-          for k in range(len(basicRecipies[i][3])):
+          for k in range(len(basicRecipies[i][2])):
              for g in range(len(self.itemList)):
-                if basicRecipies[i][3][k][0] == self.itemList[g].name:
-                   if self.itemList[g].amnt>=basicRecipies[i][3][k][2]:
+                if basicRecipies[i][2][k][0] == self.itemList[g].name:
+                   if self.itemList[g].amnt>=basicRecipies[i][2][k][1]:
                       partscomplete+=1
-             if partscomplete>=len(basicRecipies[i][3]):
-                self.craftableItems.append([Item(basicRecipies[i][0],basicRecipies[i][1],basicRecipies[i][2],getItemImgIndex(basicRecipies[i][0])),basicRecipies[i][3]])
+             if partscomplete>=len(basicRecipies[i][2]):
+                self.craftableItems.append([Item(basicRecipies[i][0],basicRecipies[i][1]),basicRecipies[i][2]])
+       if self.anvilInRange:
+           for i in range(len(anvilRecipies)):
+               partscomplete=0
+               for k in range(len(anvilRecipies[i][2])):
+                  for g in range(len(self.itemList)):  
+                       if anvilRecipies[i][2][k][0] == self.itemList[g].name:
+                           if self.itemList[g].amnt>=anvilRecipies[i][2][k][1]:
+                               partscomplete+=1
+                  if partscomplete>=len(anvilRecipies[i][2]):
+                     self.craftableItems.append([Item(anvilRecipies[i][0],anvilRecipies[i][1]),anvilRecipies[i][2]])
        if self.craftingTableInRange:
            for i in range(len(tableRecipies)):
                partscomplete=0
-               for k in range(len(tableRecipies[i][3])):
+               for k in range(len(tableRecipies[i][2])):
                   for g in range(len(self.itemList)):  
-                       if tableRecipies[i][3][k][0] == self.itemList[g].name:
-                           if self.itemList[g].amnt>=tableRecipies[i][3][k][2]:
+                       if tableRecipies[i][2][k][0] == self.itemList[g].name:
+                           if self.itemList[g].amnt>=tableRecipies[i][2][k][1]:
                                partscomplete+=1
-                  if partscomplete>=len(tableRecipies[i][3]):
-                     self.craftableItems.append([Item(tableRecipies[i][0],tableRecipies[i][1],tableRecipies[i][2],getItemImgIndex(tableRecipies[i][0])),tableRecipies[i][3]])
+                  if partscomplete>=len(tableRecipies[i][2]):
+                     self.craftableItems.append([Item(tableRecipies[i][0],tableRecipies[i][1]),tableRecipies[i][2]])
        if self.furnaceInRange:
            for i in range(len(furnaceRecipies)):
                partscomplete=0
-               for k in range(len(furnaceRecipies[i][3])):
+               for k in range(len(furnaceRecipies[i][2])):
                   for g in range(len(self.itemList)):  
-                       if furnaceRecipies[i][3][k][0] == self.itemList[g].name:
-                           if self.itemList[g].amnt>=furnaceRecipies[i][3][k][2]:
+                       if furnaceRecipies[i][2][k][0] == self.itemList[g].name:
+                           if self.itemList[g].amnt>=furnaceRecipies[i][2][k][1]:
                                partscomplete+=1
-                  if partscomplete>=len(furnaceRecipies[i][3]):
-                     self.craftableItems.append([Item(furnaceRecipies[i][0],furnaceRecipies[i][1],furnaceRecipies[i][2],getItemImgIndex(furnaceRecipies[i][0])),furnaceRecipies[i][3]])
+                  if partscomplete>=len(furnaceRecipies[i][2]):
+                     self.craftableItems.append([Item(furnaceRecipies[i][0],furnaceRecipies[i][1]),furnaceRecipies[i][2]])
        found=False
        if findItem!=None:
           for i in range(len(self.craftableItems)):
@@ -855,19 +947,14 @@ class Player():
        text=font.render(self.craftItemName,True,(255,255,255))
        screen.blit(text,(75,590))
        for i in range(len(self.craftItemComponents)):
-          screen.blit(itemImages[self.craftItemComponents[i][3]],(80+i*60,610))
-          text=font.render(str(self.craftItemComponents[i][2]),True,(255,255,255))
+          screen.blit(itemImages[self.craftItemComponents[i][2]],(80+i*60,610))
+          text=font.render(str(self.craftItemComponents[i][1]),True,(255,255,255))
           screen.blit(text,(100+i*60,630))
    def drawInventory(self):
       screen.blit(inventoryback,(10,80))
+      screen.blit(ammunitionBack,(700,80))
+      screen.blit(ammunitionBack,(640,80))
       m=pygame.mouse.get_pos()
-      for i in range(10):
-         for j in range(4):
-            if self.inventory[i][j]!=None:
-               screen.blit(hotbarItemImages[self.inventory[i][j].imgIndex],(22+i*61,90+j*61))
-               if "tool" not in self.inventory[i][j].tags:
-                   text=font.render(str(self.inventory[i][j].amnt),True,(255,255,255))
-                   screen.blit(text,(50+i*61-text.get_width()/2,110+j*61))
       for i in range(10):
           if self.hotbar[i]!=None:
               if Rect(10+i*61,10,61,61).collidepoint(m):
@@ -876,9 +963,31 @@ class Player():
       for i in range(10):
           for j in range(4):
               if self.inventory[i][j]!=None:
+                  screen.blit(hotbarItemImages[self.inventory[i][j].imgIndex],(22+i*61,90+j*61))
+                  if "tool" not in self.inventory[i][j].tags:
+                      text=font.render(str(self.inventory[i][j].amnt),True,(255,255,255))
+                      screen.blit(text,(50+i*61-text.get_width()/2,110+j*61))
                   if Rect(10+i*61,70+j*61,61,61).collidepoint(m):
                       text=font.render(str(self.inventory[i][j].name),True,(255,255,255))
                       screen.blit(text,(m[0]-text.get_width()/2,m[1]-20))
+      for i in range(4):
+         if self.coinSlots[i]!=None:
+             screen.blit(hotbarItemImages[self.coinSlots[i].imgIndex],(655,90+i*61))
+             if "tool" not in self.coinSlots[i].tags:
+                 text=font.render(str(self.coinSlots[i].amnt),True,(255,255,255))
+                 screen.blit(text,(680-text.get_width()/2,110+i*61))
+             if Rect(640,80+i*61,61,61).collidepoint(m):
+                 text=font.render(str(self.coinSlots[i].name),True,(255,255,255))
+                 screen.blit(text,(m[0]-text.get_width()/2,m[1]-20))
+      for i in range(4):
+         if self.ammoSlots[i]!=None:
+             screen.blit(hotbarItemImages[self.ammoSlots[i].imgIndex],(712,90+i*61))
+             if "tool" not in self.ammoSlots[i].tags:
+                 text=font.render(str(self.ammoSlots[i].amnt),True,(255,255,255))
+                 screen.blit(text,(740-text.get_width()/2,110+i*61))
+             if Rect(700,80+i*61,61,61).collidepoint(m):
+                 text=font.render(str(self.ammoSlots[i].name),True,(255,255,255))
+                 screen.blit(text,(m[0]-text.get_width()/2,m[1]-20))
       if self.chestOpen:
          screen.blit(chestBack,(130,330))
          for i in range(7):
@@ -896,31 +1005,45 @@ class Player():
    def updateInventory(self):
       global itemHolding, pressed, itemPos
       if pygame.mouse.get_pressed()[0]:
-         if Rect(10,10,610,313).collidepoint(pygame.mouse.get_pos()):
-            if not pressed:
+         if not pressed:
+             if Rect(10,10,610,313).collidepoint(pygame.mouse.get_pos()):
                for i in range(10):
                   if Rect(10+i*61,10,61,61).collidepoint(pygame.mouse.get_pos()):
                      if self.hotbar[i]!=None:
                         itemHolding=self.hotbar[i]
-                        itemPos=["h",i]
+                        itemPos=["hotbar",i]
                         self.hotbar[i]=None
                         pressed=True
                for i in range(10):
                   for j in range(4):
                      if Rect(10+i*61,70+j*61,61,61).collidepoint(pygame.mouse.get_pos()):
                         if self.inventory[i][j]!=None:
-                           itemPos=["i",(i,j)]
+                           itemPos=["inventory",(i,j)]
                            itemHolding=self.inventory[i][j]
                            self.inventory[i][j]=None
                            pressed=True
-         if self.chestOpen:
-            if Rect(130,330,420,240).collidepoint(pygame.mouse.get_pos()):
-               if not pressed:
+             if Rect(640,80,120,240).collidepoint(pygame.mouse.get_pos()):
+                 for i in range(4):
+                     if Rect(640,80+i*61,61,61).collidepoint(pygame.mouse.get_pos()):
+                        if self.coinSlots[i]!=None:
+                            itemHolding=self.coinSlots[i]
+                            itemPos=["coins",i]
+                            self.coinSlots[i]=None
+                            pressed=True
+                 for i in range(4):
+                     if Rect(700,80+i*61,61,61).collidepoint(pygame.mouse.get_pos()):
+                        if self.ammoSlots[i]!=None:
+                            itemHolding=self.ammoSlots[i]
+                            itemPos=["ammo",i]
+                            self.ammoSlots[i]=None
+                            pressed=True
+             if self.chestOpen:
+                if Rect(130,330,420,240).collidepoint(pygame.mouse.get_pos()):
                   for i in range(10):
                      for j in range(4):
                         if Rect(130+i*61,330+j*61,61,61).collidepoint(m):
                            if self.chestItems[i][j]!=None:
-                              itemPos=["c",(i,j)]
+                              itemPos=["chest",(i,j)]
                               itemHolding=self.chestItems[i][j]
                               self.chestItems[i][j]=None
                               pressed=True
@@ -937,7 +1060,7 @@ class Player():
                         if "tool" not in self.hotbar[i].tags:
                            self.hotbar[i].amnt+=itemHolding.amnt
                            if self.hotbar[i].amnt>999:
-                              self.changeItem(self.hotbar[i].name,self.hotbar[i].tags,self.hotbar[i].amnt-999,self.hotbar[i].imgIndex)
+                              self.changeItem(self.hotbar[i].name,self.hotbar[i].tags,self.hotbar[i].amnt-999)
                               self.hotbar[i].amnt=999
                      else:
                         putItemBack(self.hotbar[i])
@@ -956,11 +1079,47 @@ class Player():
                               if "tool" not in self.inventory[i][j].tags:
                                  self.inventory[i][j].amnt+=itemHolding.amnt
                                  if self.inventory[i][j].amnt>999:
-                                    self.changeItem(self.inventory[i][j].name,self.inventory[i][j].tags,self.inventory[i][j].amnt-999,self.inventory[i][j].imgIndex)
+                                    self.changeItem(self.inventory[i][j].name,self.inventory[i][j].tags,self.inventory[i][j].amnt-999)
                                     self.inventory[i][j].amnt=999
                            else:
                               putItemBack(self.inventory[i][j])
                               self.inventory[i][j]=itemHolding
+                        found=True
+                        self.updateCraftableItems()
+                        break
+            if not found:
+                for i in range(4):
+                    if Rect(640,60+i*61,61,61).collidepoint(pygame.mouse.get_pos()):
+                        if self.coinSlots[i]==None:
+                            self.coinSlots[i]=itemHolding
+                        else:
+                            if self.coinSlots[i].name==itemHolding.name:
+                              if "tool" not in self.coinSlots[i].tags:
+                                 self.coinSlots[i].amnt+=itemHolding.amnt
+                                 if self.coinSlots[i].amnt>999:
+                                    self.changeItem(self.coinSlots[i].name,self.coinSlots[i].tags,self.coinSlots[i].amnt-999)
+                                    self.coinSlots[i].amnt=999
+                            else:
+                              putItemBack(self.coinSlots[i])
+                              self.coinSlots[i]=itemHolding
+                        found=True
+                        self.updateCraftableItems()
+                        break
+            if not found:
+                for i in range(4):
+                    if Rect(700,60+i*61,61,61).collidepoint(pygame.mouse.get_pos()):
+                        if self.ammoSlots[i]==None:
+                            self.ammoSlots[i]=itemHolding
+                        else:
+                            if self.ammoSlots[i].name==itemHolding.name:
+                              if "tool" not in self.ammoSlots[i].tags:
+                                 self.ammoSlots[i].amnt+=itemHolding.amnt
+                                 if self.ammoSlots[i].amnt>999:
+                                    self.changeItem(self.ammoSlots[i].name,self.ammoSlots[i].tags,self.ammoSlots[i].amnt-999)
+                                    self.ammoSlots[i].amnt=999
+                            else:
+                              putItemBack(self.coinSlots[i])
+                              self.ammoSlots[i]=itemHolding
                         found=True
                         self.updateCraftableItems()
                         break
@@ -976,7 +1135,7 @@ class Player():
                                  if "tool" not in self.chestItems[i][j].tags:
                                     self.chestItems[i][j].amnt+=itemHolding.amnt
                                     if self.chestItems[i][j].amnt>999:
-                                       self.changeItem(self.chestItems[i][j].name,self.chestItems[i][j].tags,self.chestItems[i][j].amnt-999,self.chestItems[i][j].imgIndex)
+                                       self.changeItem(self.chestItems[i][j].name,self.chestItems[i][j].tags,self.chestItems[i][j].amnt-999)
                                        self.chestItems[i][j].amnt=999
                               else:
                                  putItemBack(self.chestItems[i][j])
@@ -995,7 +1154,54 @@ class Player():
             self.animationFrame=0
       else:
          self.animationTick-=1
-   def changeItem(self,name,tags,amnt,imgIndex):#check hotbar and inventory for item, then use empty spaces
+   def damage(self,val,crit):
+       global damagePopUps
+       if self.alive:
+           if crit:col=(255,0,0)
+           else:col=(200,100,0)
+           damagePopUps.append([val,col,100,(p.pos[0]+random.randint(-20,20),p.pos[1]-80+random.randint(-20,20))])
+           self.hp-=val
+           if self.hp<=0:
+               self.kill()
+   def kill(self):
+       self.alive=False
+       self.respawnTick=500
+       copper=math.floor(self.getItemAmnt("copper coin")/2)
+       silver=math.floor(self.getItemAmnt("silver coin")/2)
+       gold=math.floor(self.getItemAmnt("gold coin")/2)
+       print(gold,silver,copper)
+       if copper>0:
+           self.changeItem("copper coin",["coin"],-copper)
+           WorldItem("copper coin",copper,self.pos)
+       if silver>0:
+           self.changeItem("silver coin",-silver)
+           WorldItem("silver coin",copper,self.pos)
+       if gold>0:
+           self.changeItem("gold coin",-gold)
+           WorldItem("gold coin",copper,self.pos)
+       
+   def getItemAmnt(self,itemName):
+       amnt=0
+       for i in range(10):
+           if self.hotbar[i]!=None:
+               if self.hotbar[i].name==itemName:
+                   amnt+=self.hotbar[i].amnt
+       for i in range(10):
+           for j in range(4):
+               if self.inventory[i][j]!=None:
+                   if self.inventory[i][j].name==itemName:
+                       amnt+=self.inventory[i][j].amnt
+       for i in range(4):
+           if self.ammoSlots[i]!=None:
+               if self.ammoSlots[i].name==itemName:
+                   amnt+=self.ammoSlots[i].amnt
+       for i in range(4):
+           if self.coinSlots[i]!=None:
+               if self.coinSlots[i].name==itemName:
+                   amnt+=self.coinSlots[i].amnt
+       return amnt
+        
+   def changeItem(self,name,amnt):#check hotbar and inventory for item, then use empty spaces
       if amnt>0:
           if name=="gold coin":
              addRecentPickup(name,amnt,(255,255,0))
@@ -1034,15 +1240,22 @@ class Player():
                         return
       for i in range(10):
          if self.hotbar[i]==None:
-            self.hotbar[i]=Item(name,tags,amnt,imgIndex)
+            self.hotbar[i]=Item(name,amnt)
             return
       for i in range(10):
          for j in range(4):
             if self.inventory[i][j]==None:
-               self.inventory[i][j]=Item(name,tags,amnt,imgIndex)
+               self.inventory[i][j]=Item(name,amnt)
                return
    def update(self):
       global stopRight, stopLeft, pressed, itemHolding, itemPos
+      if not self.alive:
+          if self.respawnTick>0:
+              self.respawnTick-=1
+          else:
+              self.pos=spawnPoint
+              self.alive=True
+              self.hp=self.maxhp
       if self.showInventory:
           if self.craftingSlotDelay<=0:
               if self.craftingMenuPos%60<29.8:
@@ -1059,10 +1272,10 @@ class Player():
                     if Rect(10,600,55,55).collidepoint(pygame.mouse.get_pos()):
                        pressed=True
                        item=self.craftableItems[itemIndex][0]
-                       itemHolding=Item(item.name,item.tags,item.amnt,item.imgIndex)
+                       itemHolding=Item(item.name,item.amnt)
                        for i in range(len(self.craftableItems[itemIndex][1])):
                            item=self.craftableItems[itemIndex][1][i]
-                           p.changeItem(item[0],item[1],-item[2],item[3])
+                           p.changeItem(item[0],-item[1])
                        p.updateCraftableItems(itemHolding)
               else:
                  self.craftItemName=""
@@ -1076,41 +1289,43 @@ class Player():
               self.craftingMenuPos=655-len(self.craftableItems)*60
               
       if self.grounded:
-         if self.groundedTick<0:
+         if self.groundedTick<=0:
             self.groundedTick+=7
             self.grounded=False
             stopRight=False
             stopLeft=False
          else:
             self.groundedTick-=1
-            
-      if movingRight:
-         if not stopRight:
-            self.direction=0
-            self.updateAnimationFrame()
-            self.vel=(self.vel[0]+1,self.vel[1])
-            self.chestOpen=False
-            self.showInventory=False
-            itemPos=None
-      if movingLeft:
-         if not stopLeft:
-            self.direction=1
-            self.updateAnimationFrame()
-            self.vel=(self.vel[0]-1,self.vel[1])
-            self.chestOpen=False
-            self.showInventory=False
-            itemPos=None
+      if self.alive:
+          if movingRight:
+             if not stopRight:
+                self.direction=0
+                self.updateAnimationFrame()
+                self.vel=(self.vel[0]+1,self.vel[1])
+                self.chestOpen=False
+                self.showInventory=False
+                itemPos=None
+          if movingLeft:
+             if not stopLeft:
+                self.direction=1
+                self.updateAnimationFrame()
+                self.vel=(self.vel[0]-1,self.vel[1])
+                self.chestOpen=False
+                self.showInventory=False
+                itemPos=None
       if not movingLeft and not movingRight:
          self.animationFrame=0
       if self.vel[0]<-self.movespeed:
          self.vel=(-self.movespeed,self.vel[1])
       if self.vel[0]>self.movespeed:
          self.vel=(self.movespeed,self.vel[1])
-      self.vel=(self.vel[0]*0.95,self.vel[1]*0.99+0.3)
-      self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
+      if self.alive:
+          self.vel=(self.vel[0]*0.95,self.vel[1]*0.99+0.3)
+          self.pos=(self.pos[0]+self.vel[0],self.pos[1]+self.vel[1])
       self.blockpos=(math.floor(self.pos[0]//BLOCKSIZE),math.floor(self.pos[1]//BLOCKSIZE))
       self.craftingTableInRange=False
       self.furnaceInRange=False
+      self.anvilInRange=False
       for i in range(3):
          for j in range(3):
             val=mapData[self.blockpos[1]+j-1-CHUNKSIZE][self.blockpos[0]+i-1-CHUNKSIZE][0]
@@ -1118,6 +1333,8 @@ class Player():
                 self.craftingTableInRange=True
             if val==61:
                self.furnaceInRange=True
+            if val==100:
+               self.anvilInRange=True
             try:
                if val not in uncollidableBlocks:
                   blockrect=Rect(BLOCKSIZE*(self.blockpos[0]+i-1),BLOCKSIZE*(self.blockpos[1]+j-1),BLOCKSIZE,BLOCKSIZE)
@@ -1172,21 +1389,30 @@ class Player():
           if i==heartNum-1:
               surf.set_alpha(25.5*(self.hp%10))
           screen.blit(surf,(screenW-60-i*42,15))
+      font=pygame.font.SysFont("Fixedsys",25)
+      text=font.render("Life: "+str(self.hp)+"/"+str(self.maxhp),True,(255,255,255))
+      screen.blit(text,(screenW-350,3))
    def draw(self):
       screen.blit(characterFrames[self.animationFrame+self.direction*4],(int(self.rect.left-CAM.pos[0]),int(self.rect.top-CAM.pos[1])))
+      if showHitBoxes:
+          pygame.draw.rect(screen,(255,0,0),Rect(self.rect.left-CAM.pos[0],self.rect.top-CAM.pos[1],self.rect.width,self.rect.height),2)
 def distance(p1,p2):
    return math.sqrt((p2[0]-p1[0])**2+(p2[1]-p1[1])**2)
 def putItemBack(item):
     global itemPos
     if itemPos!=None:
-       if itemPos[0]=="i":
+       if itemPos[0]=="inventory":
           p.inventory[itemPos[1][0]][itemPos[1][1]]=item
-       elif itemPos[0]=="h":
+       elif itemPos[0]=="hotbar":
           p.hotbar[itemPos[1]]=item
+       elif itemPos[0]=="coins":
+          p.coinSlots[itemPos[1]]=item
+       elif itemPos[0]=="ammo":
+          p.ammoSlots[itemPos[1]]=item
        else:
           p.chestItems[itemPos[1][0]][itemPos[1][1]]=item
     else:
-        p.changeItem(item.name,item.tags,item.amnt,item.imgIndex)
+        p.changeItem(item.name,item.amnt)
     itemPos=None
 def tree(pos):
    global mapData
@@ -1235,15 +1461,31 @@ def chestRoom(pos):
    chestData.append(chest)
 def lootChestItems(tier):
    itemArr=[[None for i in range(4)] for j in range(7)]
-   for j in range(len(chestLoot[tier])//7+1):
-      for i in range(len(chestLoot[tier])):
-         itemDat=chestLoot[tier][i+j*7][random.randint(0,len(chestLoot[tier][i])-1)]
+   rowsreq=len(chestLoot[tier])//7+1
+   for j in range(rowsreq):
+      for i in range(len(chestLoot[tier])-7*(rowsreq-1)):
+         itemDat=chestLoot[tier][i%7+j*7][random.randint(0,len(chestLoot[tier][i])-1)]
          name=itemDat[0]
-         tags=itemDat[1]
-         amnt=random.randint(itemDat[2][0],itemDat[2][1])
-         imgIndex=getItemImgIndex(name)
-         itemArr[i][j]=Item(name,tags,amnt,imgIndex)
+         amnt=random.randint(itemDat[1][0],itemDat[1][1])
+         itemArr[i][j]=Item(name,amnt)
    return itemArr
+def pot(pos):
+    for i in range(10):
+        if mapData[pos[1]][pos[0]][0]==0 and mapData[pos[1]+1][pos[0]][0] >0 and mapData[pos[1]+1][pos[0]][0] not in uncollidableBlocks:
+            mapData[pos[1]][pos[0]][0] = random.randint(54,55)
+            return True
+        pos=(pos[0],pos[1]+1)
+    return False
+def potLoot(pos):
+    rnum=random.randint(0,len(potLootItems)-1)
+    WorldItem(potLootItems[rnum][0],random.randint(potLootItems[rnum][1][0],potLootItems[rnum][1][1]),pos)
+def rot_center(image, angle):
+    orig_rect = image.get_rect()
+    rot_image = pygame.transform.rotate(image, angle)
+    rot_rect = orig_rect.copy()
+    rot_rect.center = rot_image.get_rect().center
+    rot_image = rot_image.subsurface(rot_rect).copy()
+    return rot_image
 def updateWorldItems():
    global worldItems
    for item in worldItems:
@@ -1272,6 +1514,10 @@ def getItemImgIndex(name):
    if name=="iron axe":return 123
    if name=="iron hammer":return 124
    if name=="iron sword":return 125
+   if name=="lead pickaxe":return 90
+   if name=="lead axe":return 91
+   if name=="lead hammer":return 92
+   if name=="lead sword":return 93
    if name=="silver pickaxe":return 138
    if name=="silver axe":return 139
    if name=="silver hammer":return 140
@@ -1299,6 +1545,96 @@ def getItemImgIndex(name):
    if name=="sponge":return 48
    if name=="wooden bow":return 136
    if name=="wooden arrow":return 153
+   if name=="grenade":return 152
+   if name=="amethyst":return 161
+   if name=="ruby":return 193
+   if name=="topaz":return 177
+   if name=="diamond":return 209
+   if name=="sapphire":return 225
+   if name=="iron anvil":return 100
+   if name=="lead":return 146
+   if name=="lead bar":return 147
+   if name=="copper bow": return 110
+   if name=="iron bow": return 126
+   if name=="lead bow": return 94
+   if name=="silver bow": return 142
+   if name=="gold bow": return 158
+   if name=="ruby staff": return 95
+   if name=="amethyst staff": return 111
+   if name=="sapphire staff": return 143
+   if name=="topaz staff": return 127
+   if name=="diamond staff": return 159
+def getTagsFromName(name):
+   if name=="wood":return ["block","material"]
+   if name=="dirt":return ["block"]
+   if name=="stone":return ["block","material"]
+   if name=="copper":return ["ore"]
+   if name=="iron":return ["ore"]
+   if name=="coal":return ["ore"]
+   if name=="silver":return ["ore"]
+   if name=="gold":return ["ore"]
+   if name=="lead": return ["ore"]
+   if name=="copper bar":return ["material"]
+   if name=="iron bar":return ["material"]
+   if name=="silver bar":return ["material"]
+   if name=="gold bar":return ["material"]
+   if name=="lead bar": return ["material"]
+   if name=="copper pickaxe":return ["tool","pickaxe"]
+   if name=="copper axe":return ["tool","axe"]
+   if name=="copper hammer":return ["tool","hammer"]
+   if name=="copper sword":return ["tool","sword"]
+   if name=="iron pickaxe":return ["tool","pickaxe"]
+   if name=="iron axe":return ["tool","axe"]
+   if name=="iron hammer":return ["tool","hammer"]
+   if name=="iron sword":return ["tool","sword"]
+   if name=="lead pickaxe":return ["tool","pickaxe"]
+   if name=="lead axe":return ["tool","axe"]
+   if name=="lead hammer":return ["tool","hammer"]
+   if name=="lead sword":return ["tool","sword"]
+   if name=="silver pickaxe":return ["tool","pickaxe"]
+   if name=="silver axe":return ["tool","axe"]
+   if name=="silver hammer":return ["tool","hammer"]
+   if name=="silver sword":return ["tool","sword"]
+   if name=="gold pickaxe":return ["tool","pickaxe"]
+   if name=="gold axe":return ["tool","axe"]
+   if name=="gold hammer":return ["tool","hammer"]
+   if name=="gold sword":return ["tool","sword"]
+   if name=="cobble":return ["block","material"]
+   if name=="crafting table":return ["block"]
+   if name=="wood platform":return ["block"]
+   if name=="wood backwall":return ["block","backwall"]
+   if name=="cobble backwall":return ["block","backwall"]
+   if name=="cobble furnace":return ["block","furnace"]
+   if name=="wooden chest":return ["block","chest"]
+   if name=="gold chest":return ["block","chest"]
+   if name=="gold coin":return ["coin"]
+   if name=="silver coin":return ["coin"]
+   if name=="copper coin":return ["coin"]
+   if name=="acorn":return ["block"]
+   if name=="greater healing potion":return ["potion","healing"]
+   if name=="lesser healing potion":return ["potion","healing"]
+   if name=="throwing knife":return ["throwable"]
+   if name=="shuriken":return ["throwable"]
+   if name=="sponge":return ["block"]
+   if name=="wooden bow":return ["weapon","bow"]
+   if name=="wooden arrow":return ["ammunition","arrow"]
+   if name=="grenade":return ["throwable","grenade"]
+   if name=="amethyst":return ["gem","material"]
+   if name=="ruby":return ["gem","material"]
+   if name=="topaz":return ["gem","material"]
+   if name=="diamond":return ["gem","material"]
+   if name=="sapphire":return ["gem","material"]
+   if name=="iron anvil": return ["block","anvil"]
+   if name=="ruby staff": return ["weapon","magic","staff"]
+   if name=="amethyst staff": return ["weapon","magic","staff"]
+   if name=="sapphire staff": return ["weapon","magic","staff"]
+   if name=="topaz staff": return ["weapon","magic","staff"]
+   if name=="diamond staff": return ["weapon","magic","staff"]
+   if name=="copper bow": return ["weapon","bow"]
+   if name=="iron bow": return ["weapon","bow"]
+   if name=="lead bow": return ["weapon","bow"]
+   if name=="silver bow": return ["weapon","bow"]
+   if name=="gold bow": return ["weapon","bow"]
 def getInfoFromVal(val):
    if val==1:return ["cobble",["material","block"]]
    if val==4:return ["wood",["material","block"]]
@@ -1315,6 +1651,13 @@ def getInfoFromVal(val):
    if val==85:return ["wooden chest",["block","chest"]]
    if val==86:return ["gold chest",["block","chest"]]
    if val==48:return ["sponge",["block"]]
+   if val==50:return ["topaz",["gem","material"]]
+   if val==66:return ["ruby",["gem","material"]]
+   if val==67:return ["sapphire",["gem","material"]]
+   if val==65:return ["amethyst",["gem","material"]]
+   if val==64:return ["diamond",["gem","material"]]
+   if val==100:return ["iron anvil",["gem","material"]]
+   if val==52:return ["lead",["ore"]]
 def getValFromName(name):
    if name=="stone":return 1
    if name=="dirt":return 2
@@ -1328,6 +1671,7 @@ def getValFromName(name):
    if name=="wooden chest":return 85
    if name=="gold chest":return 86
    if name=="sponge":return 48
+   if name=="iron anvil": return 100
 def getIntegFromVal(val):
    if val==1:return 100
    if val==2 or val==3:return 75
@@ -1346,6 +1690,14 @@ def getIntegFromVal(val):
    if val==85:return 200
    if val==86:return 200
    if val==48:return 2000
+   if val==54 or val==55:return 5
+   if val==50:return 150
+   if val==66:return 150
+   if val==67:return 150
+   if val==65:return 150
+   if val==64:return 250
+   if val==100:return 350
+   if val==52: return 200
 def updateRecentPickups():
    global recentPickups
    for pickup in recentPickups:
@@ -1366,6 +1718,22 @@ def drawRecentPickups():
       if recentPickups[i][2]<=25:
          text.set_alpha(recentPickups[i][2]/25*255)
       screen.blit(text,(recentPickups[i][3][0]-CAM.pos[0]-text.get_width()/2,recentPickups[i][3][1]-CAM.pos[1]-75-i*30))
+def updateDamagePopUps():
+   global damagePopUps
+   for popup in damagePopUps:
+      popup[2]-=1
+      if popup[2]<0:
+         damagePopUps.remove(popup)
+def drawDamagePopUps():
+   for i in range(len(damagePopUps)):
+      if damagePopUps[i][2]>90:
+         font=pygame.font.SysFont("Fixedsys",int((100-damagePopUps[i][2])*4))
+      else:
+         font=pygame.font.SysFont("Fixedsys",40)
+      text=font.render(str(damagePopUps[i][0]),False,damagePopUps[i][1])
+      if damagePopUps[i][2]<=25:
+         text.set_alpha(damagePopUps[i][2]/25*255)
+      screen.blit(text,(damagePopUps[i][3][0]-CAM.pos[0]-text.get_width()/2,damagePopUps[i][3][1]-CAM.pos[1]))
 def addRecentPickup(name,amnt,colour=(255,255,255)):
    global recentPickups
    for i in range(len(recentPickups)):
@@ -1390,8 +1758,8 @@ def updateProjectiles():
 def drawProjectiles():
    for projectile in projectiles:
       projectile.draw()
-transparentBlocks=[84,5,85,86]
-uncollidableBlocks=[0,84,61,85,86]
+transparentBlocks=[84,5,85,86,54,55,100]
+uncollidableBlocks=[0,84,61,85,86,54,55,100]
 chestBlocks=[85,86]
 
 NPCS=[]
@@ -1399,78 +1767,132 @@ projectiles=[]
 
 birdNum=0
 
-font=pygame.font.Font("Fonts\ARCADECLASSIC.TTF",20)
+if platform.system() == "Darwin": #Resolves Font Errors on OSX : User is required to Install
+  font=pygame.font.SysFont("Fonts/ARCADECLASSIC.TFF",20)
+else:
+  font=pygame.font.Font("Fonts/ARCADECLASSIC.TTF",20)
 clock=pygame.time.Clock()
 
 basicRecipies=[#[out item name,out item tags,out item quantity,out item imgIndex,[in items, in item quianties]]
-   ["wood",["block","material"],1,[["wood backwall",["block","backwall"],4]]],
-   ["wood",["block","material"],1,[["wood platform",["block"],2]]],
-   ["cobble",["block","material"],1,[["cobble backwall",["block","backwall"],4]]],
-   ["wood platform",["block"],2,[["wood",["block","material"],1]]],
-   ["crafting table",["block"],1,[["wood",["block","material"],10]]],
+   ["wood",1,[["wood backwall",4]]],
+   ["wood",1,[["wood platform",2]]],
+   ["cobble",1,[["cobble backwall",4]]],
+   ["wood platform",2,[["wood",1]]],
+   ["crafting table",1,[["wood",10]]],
    ]
 tableRecipies=[
-   ["wood backwall",["block","backwall"],4,[["wood",["block","material"],1]]],
-   ["cobble backwall",["block","backwall"],4,[["cobble",["block","material"],1]]],
-   ["cobble furnace",["block","furnace"],1,[["coal",["ore","material"],4],["cobble",["block","material"],10]]],
-   ["wooden chest",["block","chest"],1,[["wood",["block","material"],20],["iron bar",["material"],2]]],
-   ["copper pickaxe",["tool","pickaxe"],1,[["wood",["block","material"],10],["copper bar",["material"],10]]],
-   ["copper hammer",["tool","hammer"],1,[["wood",["block","material"],10],["copper bar",["material"],5]]],
-   ["copper axe",["tool","axe"],1,[["wood",["block","material"],10],["copper bar",["material"],5]]],
-   ["copper sword",["weapon","tool"],1,[["wood",["block","material"],10],["copper bar",["material"],5]]],
-   ["iron pickaxe",["tool","pickaxe"],1,[["wood",["block","material"],10],["iron bar",["material"],10]]],
-   ["iron axe",["tool","axe"],1,[["wood",["block","material"],10],["iron bar",["material"],5]]],
-   ["iron hammer",["tool","hammer"],1,[["wood",["block","material"],10],["iron bar",["material"],5]]],
-   ["iron sword",["weapon","tool"],1,[["wood",["block","material"],10],["iron bar",["material"],5]]],
-   ["silver pickaxe",["tool","pickaxe"],1,[["wood",["block","material"],10],["silver bar",["material"],10]]],
-   ["silver axe",["tool","axe"],1,[["wood",["block","material"],10],["silver bar",["material"],5]]],
-   ["silver hammer",["tool","hammer"],1,[["wood",["block","material"],10],["silver bar",["material"],5]]],
-   ["silver sword",["weapon","tool"],1,[["wood",["block","material"],10],["silver bar",["material"],5]]],
-   ["gold pickaxe",["tool","pickaxe"],1,[["wood",["block","material"],10],["gold bar",["material"],10]]],
-   ["gold axe",["tool","axe"],1,[["wood",["block","material"],10],["gold bar",["material"],5]]],
-   ["gold hammer",["tool","hammer"],1,[["wood",["block","material"],10],["gold bar",["material"],5]]],
-   ["gold sword",["weapon","tool"],1,[["wood",["block","material"],10],["gold bar",["material"],5]]],
-   ["sponge",["block"],1,[["stone",["block","material"],100]]],
-   ["wooden bow",["weapon","bow"],1,[["wood",["block","material"],10]]],
-   ["wooden arrow",["ammunition","arrow"],25,[["wood",["block","material"],1],["cobble",["block","material"],1]]],
+   ["wood backwall",4,[["wood",1]]],
+   ["cobble backwall",4,[["cobble",1]]],
+   ["iron anvil",1,[["iron bar",5]]],
+   ["cobble furnace",1,[["coal",4],["cobble",10]]],
+   ["wooden chest",1,[["wood",20],["iron bar",2]]],
+   ["sponge",1,[["stone",100]]],
+   ["wooden bow",1,[["wood",10]]],
+   ["wooden arrow",25,[["wood",1],["cobble",1]]],
    ]
+anvilRecipies=[
+    ["copper pickaxe",1,[["wood",10],["copper bar",10]]],
+    ["copper hammer",1,[["wood",10],["copper bar",5]]],
+    ["copper axe",1,[["wood",10],["copper bar",5]]],
+    ["copper sword",1,[["wood",10],["copper bar",5]]],
+    ["copper bow",1,[["copper bar",7]]],
+    ["iron pickaxe",1,[["wood",10],["iron bar",10]]],
+    ["iron axe",1,[["wood",10],["iron bar",5]]],
+    ["iron hammer",1,[["wood",10],["iron bar",5]]],
+    ["iron sword",1,[["wood",10],["iron bar",5]]],
+    ["iron bow",1,[["iron bar",7]]],
+    ["lead pickaxe",1,[["wood",10],["lead bar",10]]],
+    ["lead axe",1,[["wood",10],["lead bar",5]]],
+    ["lead hammer",1,[["wood",10],["lead bar",5]]],
+    ["lead sword",1,[["wood",10],["lead bar",5]]],
+    ["lead bow",1,[["lead bar",7]]],
+    ["silver pickaxe",1,[["wood",10],["silver bar",10]]],
+    ["silver axe",1,[["wood",10],["silver bar",5]]],
+    ["silver hammer",1,[["wood",10],["silver bar",5]]],
+    ["silver sword",1,[["wood",10],["silver bar",5]]],
+    ["silver bow",1,[["silver bar",7]]],
+    ["gold pickaxe",1,[["wood",10],["gold bar",10]]],
+    ["gold axe",1,[["wood",10],["gold bar",5]]],
+    ["gold hammer",1,[["wood",10],["gold bar",5]]],
+    ["gold sword",1,[["wood",10],["gold bar",5]]],
+    ["gold bow",1,[["gold bar",7]]],
+    ["diamond staff",1,[["diamond",5],["gold bar",5]]],
+    ["sapphire staff",1,[["sapphire",5],["silver bar",7]]],
+    ["ruby staff",1,[["ruby",5],["lead bar",9]]],
+    ["topaz staff",1,[["topaz",5],["iron bar",12]]],
+    ["amethyst staff",1,[["amethyst",5],["copper bar",15]]],
+    ]
 furnaceRecipies=[
-   ["iron bar",["material"],1,[["iron",["ore"],3]]],
-   ["copper bar",["material"],1,[["copper",["ore"],3]]],
-   ["silver bar",["material"],1,[["silver",["ore"],3]]],
-   ["gold bar",["material"],1,[["gold",["ore"],3]]],
-   ["stone",["block","material"],1,[["cobble",["block","material"],1]]],
+   ["iron bar",1,[["iron",3]]],
+   ["copper bar",1,[["copper",3]]],
+   ["silver bar",1,[["silver",3]]],
+   ["gold bar",1,[["gold",3]]],
+   ["lead bar",1,[["lead",3]]],
+   ["stone",1,[["cobble",1]]],
    ]
 
-toolspeeds={"copper":5,
-            "iron":7,
-            "silver":9,
-            "gold":11,
+toolspeeds={"copper":4,
+            "iron":6,
+            "lead":8,
+            "silver":10,
+            "gold":12,
             }
+bowBaseDamages={
+    "wooden":(8,11),
+    "copper":(11,13),
+    "iron":(13,15),
+    "lead":(15,18),
+    "silver":(18,21),
+    "gold":(21,23),
+    }
 chestLoot = [[
-   [["copper bar",["material"],(4,15)],["iron bar",["material"],(4,15)],["silver bar",["material"],(4,10)]],
-   [["lesser healing potion",["potion","healing"],(2,7)]],
-   [["silver coin",["coin"],(20,69)]],
-   [["shuriken",["throwable"],(10,30)],["throwing knife",["throwable"],(10,30)]],#slot4
+   [["copper bar",(4,15)],["iron bar",(4,15)],["silver bar",(4,10)]],
+   [["lesser healing potion",(2,7)]],
+   [["silver coin",(20,69)]],
+   [["shuriken",(10,30)],["throwing knife",(10,30)]],
    ],
 
 [
-   [["gold coin",["coin"],(1,1)],["copper bar",["material"],(8,20)],["iron bar",["material"],(8,20)],["silver bar",["material"],(8,15)]],
-   [["copper bar",["material"],(8,20)],["iron bar",["material"],(8,20)],["silver bar",["material"],(8,15)]],
-   [["lesser healing potion",["potion","healing"],(3,9)],["greater healing potion",["potion","healing"],(1,3)]],
-   [["silver coin",["coin"],(20,69)]],
-   [["shuriken",["throwable"],(20,40)],["throwing knife",["throwable"],(20,40)]],#slot4
+   [["gold coin",(1,1)],["copper bar",(8,20)],["iron bar",(8,20)],["silver bar",(8,15)]],
+   [["copper bar",(8,20)],["iron bar",(8,20)],["silver bar",(8,15)]],
+   [["lesser healing potion",(3,9)],["greater healing potion",(1,3)]],
+   [["silver coin",(20,69)]],
+   [["shuriken",(20,40)],["throwing knife",(20,40)]],
+   [["grenade",(10,20)]],
+   [["ruby",(1,2)],["sapphire",(1,2)],["diamond",(1,2)],["topaz",(1,3)],["amethyst",(1,2)]]
    ],
 
 [
-   [["gold bar",["material"],(3,9)]],#slot2
-   [["gold coin",["coin"],(1,2)]],#slot2
-   [["silver coin",["coin"],(50,99)]],#slot3
-   [["shuriken",["throwable"],(30,70)]],#slot4
-   [["throwing knife",["throwable"],(30,70)]],#slot5
-   [["greater healing potion",["potion","healing"],(2,7)],["lesser healing potion",["potion","healing"],(5,15)]],#etc.
+   [["gold bar",(3,9)]],#slot2
+   [["gold coin",(1,2)]],#slot2
+   [["silver coin",(50,99)]],#slot3
+   [["shuriken",(30,70)]],#slot4
+   [["throwing knife",(30,70)]],#slot5
+   [["greater healing potion",(2,7)],["lesser healing potion",(5,15)]],#etc.
+   [["grenade",(10,30)]],#slot4
+   [["ruby",(2,5)],["sapphire",(2,5)],["diamond",(2,5)],["topaz",(2,5)],["amethyst",(2,5)]]
    ]]
+potLootItems=[
+    ["shuriken",(20,40)],
+    ["throwing knife",(20,40)],
+    ["lesser healing potion",(1,3)],
+    ["wooden arrow",(20,40)],
+    ["silver coin",(5,15)],
+    ["grenade",(5,15)],
+    ]
 
+baseItemDamages={
+    "throwing knife":(7,13),
+    "grenade":(20,30),
+    "shuriken":(5,10),
+    "wooden arrow":(3,4)
+    }
+baseItemCritChance={
+    "throwing knife":0.1,
+    "shuriken":0.15,
+    "wooden arrow":0.1,
+    "grenade":0.05,
+    }
 worldSize="tiny"
 
 worldSizes={
@@ -1498,7 +1920,8 @@ TOPBOARDER=CHUNKSIZE*BLOCKSIZE+BLOCKSIZE/2
 globalLighting=1
 
 worldItems=[]
-recentPickups=[]#name,amnt,life
+recentPickups=[]#name,amnt,life,pos
+damagePopUps=[]#amnt,colour,life,pos
 chestData=[]
 
 stopRight=False
@@ -1524,6 +1947,7 @@ assembleHotbarBack()
 assembleInventoryBack()
 assembleCraftingBack()
 assembleChestBack()
+assembleAmmunitionBack()
 loadItemImages()
 loadLightingImages()
 loadBirdImages()
@@ -1540,16 +1964,18 @@ CAM.Map.generateTerrain(0)
 
 print("Giving tools...")
 
-p.hotbar[0]=Item("copper pickaxe",["pickaxe","tool"],1,106)
-p.hotbar[1]=Item("copper axe",["axe","tool"],1,107)
-p.hotbar[2]=Item("copper hammer",["hammer","tool"],1,108)
-p.hotbar[3]=Item("copper sword",["weapon","tool"],1,109)
-
+p.hotbar[0]=Item("copper pickaxe",1)
+p.hotbar[1]=Item("copper axe",1)
+p.hotbar[2]=Item("copper hammer",1)
+p.hotbar[3]=Item("copper sword",1)
+p.hotbar[4]=Item("grenade",100)
+p.hotbar[5]=Item("throwing knife",100)
+ie=lootChestItems(2)
 print("Done! (In",pygame.time.get_ticks()/1000,"seconds!)")
 p.hp=25
 while 1:
    if p.pos[1]/BLOCKSIZE<430:
-      if birdNum<2 and random.randint(0,100)==100:
+      if birdNum<3 and random.randint(0,100)==100:
          if random.randint(0,1)==1:
             bird((CAM.pos[0]-20,random.randint(int(CAM.pos[1]),int(CAM.pos[1]+4*BLOCKSIZE))),(1,0))
          else:
@@ -1582,16 +2008,14 @@ while 1:
       CAM.pos=(CAM.pos[0],TOPBOARDER-BLOCKSIZE/2)
    elif CAM.pos[1]>BOTBOARDER+BLOCKSIZE/2-screenH:
       CAM.pos=(CAM.pos[0],BOTBOARDER+BLOCKSIZE/2-screenH)
-   if pygame.mouse.get_pressed()[0]:
+   if pygame.mouse.get_pressed()[0] and p.alive:
       if p.hotbar[p.selectedItem]!=None:
           tags=p.hotbar[p.selectedItem].tags
           if distance((p.pos[0]-CAM.pos[0],p.pos[1]-CAM.pos[1]),m)<PLAYERREACH:
              if "tool" in tags:
-                toolset=""
                 for i in range(len(p.hotbar[p.selectedItem].name)):
-                   if p.hotbar[p.selectedItem].name[i]!=" ":
-                      toolset+=p.hotbar[p.selectedItem].name[i]
-                   else:
+                   if p.hotbar[p.selectedItem].name[i]==" ":
+                      toolset=p.hotbar[p.selectedItem].name[:i]
                       break
                 damage=toolspeeds[toolset]
                 CAM.damageBlock(damage,m,tags)
@@ -1602,28 +2026,89 @@ while 1:
                       p.hotbar[p.selectedItem]=None
           if not t2pressed:
               t2pressed=True
+              stats={"bounce":False,"life":300,"damaging":False,"crit":False,"gravity":0.2,"age":False,"dropammo":False,"air resistance":0.99}
               if "throwable" in tags: 
                   angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
-                  vel=(-math.cos(angle)*15,-math.sin(angle)*10)
-                  Projectile(p.pos,vel,p.hotbar[p.selectedItem].tags,{"bounce":False},20,p.hotbar[p.selectedItem].imgIndex)
+                  vel=(-math.cos(angle)*15,-math.sin(angle)*15)
+                  damages=baseItemDamages[p.hotbar[p.selectedItem].name]
+                  damage=random.randint(damages[0],damages[1])
+                  stats["damage"]=damage
+                  if random.randint(0,100)<100*baseItemCritChance[p.hotbar[p.selectedItem].name]:
+                       stats["damage"]*=2
+                       stats["crit"]=True
+                  if "grenade" in tags:
+                      stats["age"]=True
+                      stats["life"]=300
+                      stats["bounce"]=True
+                      stats["bounceNum"]=10
+                      Projectile(p.pos,vel,[p.hotbar[p.selectedItem].name,p.hotbar[p.selectedItem].tags],stats,20,p.hotbar[p.selectedItem].imgIndex)
+                  else:
+                      stats["damaging"]=True
+                      stats["dropammo"]=True
+                      Projectile(p.pos,vel,[p.hotbar[p.selectedItem].name,p.hotbar[p.selectedItem].tags],stats,20,p.hotbar[p.selectedItem].imgIndex) 
                   p.hotbar[p.selectedItem].amnt-=1
                   if p.hotbar[p.selectedItem].amnt==0:
                       p.hotbar[p.selectedItem]=None
               if "potion" in tags:
                   if p.hotbar[p.selectedItem].name=="greater healing potion":
                       p.hp+=100
+                      damagePopUps.append([100,(0,230,0),100,(p.pos[0],p.pos[1]-80)])
                   if p.hotbar[p.selectedItem].name=="lesser healing potion":
                       p.hp+=50
+                      damagePopUps.append([50,(0,230,0),100,(p.pos[0],p.pos[1]-80)])
                   if p.hp>p.maxhp:
                       p.hp=p.maxhp
                   p.hotbar[p.selectedItem].amnt-=1
                   if p.hotbar[p.selectedItem].amnt==0:
                       p.hotbar[p.selectedItem]=None
               if "bow" in tags:
+                  for i in range(len(p.hotbar[p.selectedItem].name)):
+                   if p.hotbar[p.selectedItem].name[i]==" ":
+                      toolset=p.hotbar[p.selectedItem].name[:i]
+                      break
+                  baseDmg=random.randint(bowBaseDamages[toolset][0],bowBaseDamages[toolset][1])
+                  if p.getItemAmnt("wooden arrow")>0:
+                      p.changeItem("wooden arrow",-1)
+                      angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
+                      vel=(-math.cos(angle)*20,-math.sin(angle)*20)
+                      damages=baseItemDamages["wooden arrow"]
+                      damage=random.randint(damages[0],damages[1])+baseDmg
+                      stats["damage"]=damage
+                      stats["dropammo"]=True
+                      stats["damaging"]=True
+                      if random.randint(0,100)<100*baseItemCritChance["wooden arrow"]:
+                          stats["damage"]*=2
+                          stats["crit"]=True
+                      Projectile(p.pos,vel,["wooden arrow",["arrow","projectile"]],stats,20,153)
+              if "staff" in tags:
+                  stats["age"]=True
+                  stats["life"]=200
+                  stats["damaging"]=True
+                  stats["air resistance"]=1
                   angle=math.atan2(p.pos[1]-CAM.pos[1]-m[1],p.pos[0]-CAM.pos[0]-m[0])
-                  vel=(-math.cos(angle)*20,-math.sin(angle)*20)
-                  Projectile(p.pos,vel,p.hotbar[p.selectedItem].tags,{"bounce":False},20,153)
-                  
+                  vel=(-math.cos(angle)*6,-math.sin(angle)*6)
+                  stats["gravity"]=0
+                  if random.randint(0,100)<10:
+                      damageMult=2
+                      stats["crit"]=True
+                  else:
+                      damageMult=1
+                  if p.hotbar[p.selectedItem].name=="ruby staff":
+                      stats["damage"]=random.randint(14,17)*damageMult
+                      Projectile(p.pos,vel,["bolt",[]],stats,20,74)
+                  elif p.hotbar[p.selectedItem].name=="amethyst staff":
+                      stats["damage"]=random.randint(8,11)*damageMult
+                      Projectile(p.pos,vel,["bolt",[]],stats,20,75)
+                  elif p.hotbar[p.selectedItem].name=="topaz staff":
+                      stats["damage"]=random.randint(10,14)*damageMult
+                      Projectile(p.pos,vel,["bolt",[]],stats,20,76)
+                  elif p.hotbar[p.selectedItem].name=="sapphire staff":
+                      stats["damage"]=random.randint(17,20)*damageMult
+                      Projectile(p.pos,vel,["bolt",[]],stats,20,77)
+                  elif p.hotbar[p.selectedItem].name=="diamond staff":
+                      stats["damage"]=random.randint(20,23)*damageMult
+                      Projectile(p.pos,vel,["bolt",[]],stats,20,78)
+                      
                   
               
    else:
@@ -1643,21 +2128,25 @@ while 1:
    updateNPCS()
    updateProjectiles()
    updateWorldItems()
+   updateDamagePopUps()
    updateRecentPickups()
    screen.fill((135*globalLighting,206*globalLighting,235*globalLighting))
    #screen.blit(overworldbkg,(0,0))
    CAM.render()
    drawRecentPickups()
+   drawDamagePopUps()
    drawProjectiles()
-   p.draw()
+   if p.alive:
+       p.draw()
    drawWorldItems()
    drawNPCS()
-   p.drawHotbar()
-   p.drawHP()
-   if p.showInventory:
-      p.updateInventory()
-      p.drawCraftableItems()
-      p.drawInventory()
+   if p.alive:
+       p.drawHotbar()
+       p.drawHP()
+       if p.showInventory:
+          p.updateInventory()
+          p.drawCraftableItems()
+          p.drawInventory()
    fps=clock.get_fps()
    text=font.render(str(int(fps))+"fps  "+str(int(p.pos[0]//BLOCKSIZE))+"x "+str(int(p.pos[1]//BLOCKSIZE))+"y",True,(255,255,255))
    screen.blit(text,(screenW-180,0))
@@ -1688,33 +2177,56 @@ while 1:
              stopRight=False
           if event.key==K_s:
              movingDown=True
-          if event.key==K_h:
+          if event.key==K_j:
              p.pos=spawnPoint
              print("respawning...")
+          if event.key==K_h:
+              if showHitBoxes:
+                  showHitBoxes=False
+              else:
+                  showHitBoxes=True
+          if event.key==K_u:
+              p.kill()
           if event.key==K_o:
-             num=random.randint(0,3)
+             num=random.randint(0,4)
              if num==0:
-                WorldItem("gold",["ore"],random.randint(10,20),(p.pos[0],p.pos[1]-200))
+                WorldItem("gold",random.randint(10,20),(p.pos[0],p.pos[1]-200))
              elif num==1:
-                WorldItem("silver",["ore"],random.randint(10,20),(p.pos[0],p.pos[1]-200))
+                WorldItem("silver",random.randint(10,20),(p.pos[0],p.pos[1]-200))
              elif num==2:
-                WorldItem("iron",["ore"],random.randint(10,20),(p.pos[0],p.pos[1]-200))
+                WorldItem("iron",random.randint(10,20),(p.pos[0],p.pos[1]-200))
+             elif num==3:
+                WorldItem("lead",random.randint(10,20),(p.pos[0],p.pos[1]-200))
              else:
-                WorldItem("copper",["ore"],random.randint(10,20),(p.pos[0],p.pos[1]-200))
+                WorldItem("copper",random.randint(10,20),(p.pos[0],p.pos[1]-200))
+          if event.key==K_i:
+             num=random.randint(0,4)
+             if num==0:
+                WorldItem("ruby",random.randint(3,10),(p.pos[0],p.pos[1]-200))
+             elif num==1:
+                WorldItem("diamond",random.randint(3,10),(p.pos[0],p.pos[1]-200))
+             elif num==2:
+                WorldItem("sapphire",random.randint(3,10),(p.pos[0],p.pos[1]-200))
+             elif num==3:
+                WorldItem("topaz",random.randint(3,10),(p.pos[0],p.pos[1]-200))
+             else:
+                WorldItem("amethyst",random.randint(3,10),(p.pos[0],p.pos[1]-200))
           if event.key==K_f:
-             WorldItem("cobble furnace",["block","furnace"],1,(p.pos[0],p.pos[1]-200))
+             WorldItem("cobble furnace",1,(p.pos[0],p.pos[1]-200))
           if event.key==K_k:
-             WorldItem("gold chest",["block","chest"],1,(p.pos[0],p.pos[1]-200))
+             WorldItem("gold chest",1,(p.pos[0],p.pos[1]-200))
+          if event.key==K_l:
+             WorldItem("diamond staff",1,(p.pos[0],p.pos[1]-200))
           if event.key==K_m:
              num=random.randint(0,2)
              if num==0:
-                WorldItem("gold coin",["coin"],1,(p.pos[0],p.pos[1]-200))
+                WorldItem("gold coin",1,(p.pos[0],p.pos[1]-200))
              elif num==1:
-                WorldItem("silver coin",["coin"],1,(p.pos[0],p.pos[1]-200))
+                WorldItem("silver coin",1,(p.pos[0],p.pos[1]-200))
              elif num==2:
-                WorldItem("copper coin",["coin"],1,(p.pos[0],p.pos[1]-200))
+                WorldItem("copper coin",1,(p.pos[0],p.pos[1]-200))
           if event.key==K_p:
-             WorldItem("gold pickaxe",["tool","pickaxe"],1,(p.pos[0],p.pos[1]-200))
+             WorldItem("gold pickaxe",1,(p.pos[0],p.pos[1]-200))
           if event.key==K_w or event.key==K_SPACE:
              if p.grounded:
                 p.vel=(p.vel[0],-BLOCKSIZE/3.4)

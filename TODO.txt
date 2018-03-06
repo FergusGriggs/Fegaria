@@ -1,15 +1,18 @@
 ###TODO###
 ---------IMPORTANT----------
--code health
 -code enemy zombie
--use multiple threads for lighting
 -----------LESSER-----------
+-improve staff projectile animations
+-add grenade explosion animation/effect
+-use multiple threads for lighting
 -code sword
--make NPCs
+-make more NPCs
 -code saving
 -add armour
 -add music
 -add sfx
 -add hud/map
-------------BUGS------------
+----------BUGS/PROBLEMS------------
 -sometimes the player can stick to a wall
+-player jitter when standing
+-further optimisation needed
