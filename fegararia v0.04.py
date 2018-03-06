@@ -1968,8 +1968,6 @@ p.hotbar[0]=Item("copper pickaxe",1)
 p.hotbar[1]=Item("copper axe",1)
 p.hotbar[2]=Item("copper hammer",1)
 p.hotbar[3]=Item("copper sword",1)
-p.hotbar[4]=Item("grenade",100)
-p.hotbar[5]=Item("throwing knife",100)
 ie=lootChestItems(2)
 print("Done! (In",pygame.time.get_ticks()/1000,"seconds!)")
 p.hp=25
