@@ -1292,8 +1292,8 @@ class Player():
          if self.groundedTick<=0:
             self.groundedTick+=7
             self.grounded=False
-            stopRight=False
-            stopLeft=False
+            #stopRight=False
+            #stopLeft=False
          else:
             self.groundedTick-=1
       if self.alive:
